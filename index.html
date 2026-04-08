@@ -1,0 +1,2288 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no"/>
+  <meta name="theme-color" content="#080c14"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="RiderCom"/>
+  <title>RiderCom</title>
+  <link rel="manifest" href="manifest.json"/>
+  <link rel="apple-touch-icon" href="icons/icon-192.png"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Sans+KR:wght@300;400;500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
+  <!-- PeerJS -->
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+
+  <style>
+    /* ══════════════════════════════════════
+       DESIGN: 군용 HUD / 인더스트리얼
+       앰버 + 네온그린 + 딥네이비
+    ══════════════════════════════════════ */
+    :root {
+      --bg:       #080c14;
+      --bg2:      #0d1520;
+      --bg3:      #121d2e;
+      --sf:       #172030;
+      --sf2:      #1e2c42;
+      --bd:       #1e3050;
+      --bd2:      #2a4570;
+      --amber:    #e8a020;
+      --green:    #4cff91;
+      --cyan:     #00b8ff;
+      --red:      #ff3b3b;
+      --warn:     #ffb800;
+      --txt:      #d4e0f0;
+      --txt2:     #7a9bbf;
+      --txt3:     #3a5570;
+      --r:        10px;
+      --rs:       6px;
+      --tabh:     60px;
+      --hdrh:     52px;
+      --HUD:      'Orbitron', monospace;
+      --MONO:     'Share Tech Mono', monospace;
+      --UI:       'Noto Sans KR', sans-serif;
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--txt);
+      font-family:var(--UI);-webkit-tap-highlight-color:transparent;user-select:none;}
+    body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+      background-image:linear-gradient(rgba(30,48,80,.12) 1px,transparent 1px),
+        linear-gradient(90deg,rgba(30,48,80,.12) 1px,transparent 1px);
+      background-size:28px 28px;}
+    #app{display:flex;flex-direction:column;height:100dvh;max-width:480px;margin:0 auto;position:relative;z-index:1;}
+
+    /* ── Header ── */
+    .hdr{height:var(--hdrh);display:flex;align-items:center;justify-content:space-between;
+      padding:0 14px;background:var(--bg2);border-bottom:1px solid var(--bd);flex-shrink:0;}
+    .logo{font-family:var(--HUD);font-size:18px;font-weight:900;letter-spacing:3px;
+      color:var(--amber);text-shadow:0 0 16px rgba(232,160,32,.5);}
+    .logo em{color:var(--green);font-style:normal;}
+    .hdr-r{display:flex;align-items:center;gap:7px;}
+    .badge{display:flex;align-items:center;gap:5px;padding:4px 9px;border-radius:4px;
+      background:var(--bg3);border:1px solid var(--bd);font-family:var(--MONO);font-size:10px;color:var(--txt3);}
+    .dot{width:6px;height:6px;border-radius:50%;background:var(--txt3);transition:all .3s;}
+    .dot.on{background:var(--green);box-shadow:0 0 6px var(--green);}
+    .dot.blink{background:var(--warn);animation:blink 1s infinite;}
+
+    /* ── Pages ── */
+    .pages{flex:1;overflow:hidden;position:relative;}
+    .page{position:absolute;inset:0;overflow-y:auto;padding:11px;display:none;-webkit-overflow-scrolling:touch;}
+    .page.active{display:block;}
+    .page::-webkit-scrollbar{width:2px;}
+    .page::-webkit-scrollbar-thumb{background:var(--bd2);}
+
+    /* ── Tab Bar ── */
+    .tabs{height:var(--tabh);display:flex;background:var(--bg2);border-top:1px solid var(--bd);flex-shrink:0;}
+    .tb{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+      background:none;border:none;color:var(--txt3);cursor:pointer;transition:color .2s;position:relative;font-family:var(--UI);}
+    .tb.on{color:var(--amber);}
+    .tb.on::after{content:'';position:absolute;bottom:0;left:25%;right:25%;height:2px;
+      background:var(--amber);box-shadow:0 0 8px var(--amber);}
+    .ti{font-size:18px;line-height:1;}
+    .tl{font-size:9px;font-family:var(--HUD);font-weight:700;letter-spacing:.5px;}
+
+    /* ── Cards ── */
+    .card{background:var(--bg2);border:1px solid var(--bd);border-radius:var(--r);padding:13px;margin-bottom:10px;}
+    .ch{font-family:var(--HUD);font-size:10px;font-weight:700;letter-spacing:2px;color:var(--txt3);
+      text-transform:uppercase;margin-bottom:11px;display:flex;align-items:center;gap:7px;}
+    .ch::before{content:'';display:block;width:3px;height:11px;background:var(--amber);border-radius:2px;}
+
+    /* ── Buttons ── */
+    .btn{display:flex;align-items:center;justify-content:center;gap:7px;padding:12px 16px;
+      border-radius:var(--rs);border:none;font-family:var(--HUD);font-size:11px;font-weight:700;
+      letter-spacing:1.5px;cursor:pointer;transition:all .15s;width:100%;}
+    .btn:active{transform:scale(.97);}
+    .btn-a{background:var(--amber);color:var(--bg);box-shadow:0 0 14px rgba(232,160,32,.3);}
+    .btn-g{background:var(--green);color:var(--bg);box-shadow:0 0 14px rgba(76,255,145,.3);}
+    .btn-o{background:var(--sf);color:var(--txt);border:1px solid var(--bd2);}
+    .btn-r{background:var(--red);color:#fff;}
+    .btn-w{background:var(--warn);color:var(--bg);}
+    .btn-sm{padding:8px 13px;font-size:10px;width:auto;}
+    .brow{display:flex;gap:7px;}.brow .btn{flex:1;}
+
+    /* ── Toggle ── */
+    .tr{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--bd);}
+    .tr:last-child{border-bottom:none;}
+    .trl{font-size:13px;color:var(--txt);}
+    .trs{font-size:10px;color:var(--txt3);margin-top:2px;}
+    .sw{position:relative;width:44px;height:24px;flex-shrink:0;}
+    .sw input{display:none;}
+    .sw-t{position:absolute;inset:0;background:var(--bg3);border:1px solid var(--bd2);
+      border-radius:12px;cursor:pointer;transition:all .3s;}
+    .sw-t::after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;
+      border-radius:50%;background:var(--txt3);transition:all .3s;}
+    .sw input:checked+.sw-t{background:rgba(76,255,145,.1);border-color:var(--green);}
+    .sw input:checked+.sw-t::after{background:var(--green);transform:translateX(20px);box-shadow:0 0 6px rgba(76,255,145,.6);}
+
+    /* ── Slider ── */
+    .slr{padding:7px 0;}
+    .slh{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;}
+    .sln{font-size:12px;color:var(--txt2);}
+    .slv{font-family:var(--MONO);font-size:12px;color:var(--amber);}
+    input[type=range]{-webkit-appearance:none;width:100%;height:3px;background:var(--sf2);border-radius:2px;outline:none;}
+    input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;
+      background:var(--amber);box-shadow:0 0 8px rgba(232,160,32,.5);cursor:pointer;}
+
+    /* ── Input ── */
+    .inp{background:var(--bg3);border:1px solid var(--bd2);border-radius:var(--rs);
+      color:var(--txt);font-family:var(--MONO);font-size:15px;padding:10px 12px;width:100%;text-align:center;}
+    .inp:focus{outline:none;border-color:var(--amber);}
+    .inp-l{text-align:left;font-size:13px;}
+
+    /* ── Animations ── */
+    @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+    @keyframes pulse-a{0%,100%{box-shadow:0 0 0 0 rgba(232,160,32,.5)}60%{box-shadow:0 0 0 10px rgba(232,160,32,0)}}
+    @keyframes pulse-g{0%,100%{box-shadow:0 0 0 0 rgba(76,255,145,.5)}60%{box-shadow:0 0 0 10px rgba(76,255,145,0)}}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes scan{0%{background-position:0 0}100%{background-position:0 100px}}
+
+    /* ════════════════════════════════
+       HOME / DRIVE PAGE
+    ════════════════════════════════ */
+    .dsbar{display:flex;align-items:center;justify-content:space-between;
+      padding:7px 13px;margin-bottom:10px;background:var(--bg3);
+      border:1px solid var(--bd);border-radius:var(--rs);}
+    .dst{font-family:var(--HUD);font-size:10px;letter-spacing:2px;color:var(--txt3);}
+    .dst.on{color:var(--green);}
+    .dtimer{font-family:var(--MONO);font-size:13px;color:var(--amber);}
+
+    /* 속도계 */
+    .spedo{text-align:center;padding:14px 0 8px;position:relative;}
+    .sp-ring-wrap{position:relative;display:inline-block;width:176px;height:176px;}
+    .sp-ring-wrap svg{position:absolute;inset:0;transform:rotate(-90deg);}
+    .sr-bg{stroke:var(--sf2);fill:none;stroke-width:5;}
+    .sr-fill{stroke:var(--amber);fill:none;stroke-width:5;stroke-linecap:round;
+      stroke-dasharray:503;stroke-dashoffset:503;transition:stroke-dashoffset .4s ease,stroke .3s;}
+    .sp-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+    .sp-num{font-family:var(--HUD);font-size:54px;font-weight:900;line-height:1;color:var(--txt);transition:color .3s;}
+    .sp-num.warn{color:var(--warn);}
+    .sp-num.over{color:var(--red);animation:blink .5s infinite;}
+    .sp-unit{font-family:var(--HUD);font-size:10px;letter-spacing:3px;color:var(--txt3);margin-top:2px;}
+    .sp-chips{display:flex;justify-content:center;gap:7px;margin-top:7px;}
+    .sp-chip{padding:3px 11px;border-radius:20px;font-family:var(--MONO);font-size:10px;
+      border:1px solid var(--bd2);color:var(--txt3);transition:all .3s;}
+    .sp-chip.passed{border-color:var(--green);color:var(--green);box-shadow:0 0 6px rgba(76,255,145,.3);}
+
+    /* 통계 */
+    .sgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px;}
+    .sbox{background:var(--sf);border:1px solid var(--bd);border-radius:var(--rs);padding:9px 7px;text-align:center;}
+    .sv{font-family:var(--MONO);font-size:17px;color:var(--txt);margin-bottom:3px;}
+    .sl{font-family:var(--HUD);font-size:8px;letter-spacing:1px;color:var(--txt3);text-transform:uppercase;}
+
+    /* 날씨 */
+    .wrow{display:flex;align-items:center;gap:13px;}
+    .wico{font-size:30px;}
+    .wtemp{font-family:var(--HUD);font-size:20px;color:var(--txt);}
+    .wdesc{font-size:10px;color:var(--txt3);margin-top:2px;}
+    .wext{margin-left:auto;text-align:right;}
+    .wextv{font-family:var(--MONO);font-size:15px;color:var(--cyan);}
+    .wextl{font-size:9px;color:var(--txt3);margin-top:2px;}
+
+    /* 경보 */
+    .arow{display:flex;gap:6px;flex-wrap:wrap;}
+    .achip{display:flex;align-items:center;gap:5px;padding:5px 11px;border-radius:4px;
+      font-family:var(--HUD);font-size:9px;font-weight:700;letter-spacing:1px;
+      border:1px solid var(--bd);color:var(--txt3);background:var(--sf);transition:all .2s;}
+    .achip.on{border-color:var(--warn);color:var(--warn);background:rgba(255,184,0,.08);}
+    .achip.trig{border-color:var(--red);color:var(--red);background:rgba(255,59,59,.1);animation:blink .4s infinite;}
+    .aled{width:6px;height:6px;border-radius:50%;background:currentColor;}
+
+    /* 주행 버튼 */
+    .dbtn{position:relative;overflow:hidden;padding:17px;font-size:13px;letter-spacing:3px;}
+    .dbtn.running{background:rgba(255,59,59,.12);border:1px solid var(--red);color:var(--red);}
+    .dbtn.running::after{content:'';position:absolute;inset:0;
+      background:repeating-linear-gradient(90deg,transparent,transparent 40px,rgba(255,59,59,.05) 40px,rgba(255,59,59,.05) 80px);
+      animation:scan 2s linear infinite;}
+
+    /* ════════════════════════════════
+       COMM PAGE
+    ════════════════════════════════ */
+    .codearea{text-align:center;padding:16px 0;}
+    .clbl{font-family:var(--HUD);font-size:9px;letter-spacing:3px;color:var(--txt3);margin-bottom:7px;}
+    .cnum{font-family:var(--HUD);font-size:40px;font-weight:900;letter-spacing:9px;
+      color:var(--amber);text-shadow:0 0 22px rgba(232,160,32,.4);}
+    .ctimer{font-family:var(--MONO);font-size:11px;color:var(--txt3);margin-top:5px;}
+    .ctimer span{color:var(--warn);}
+    .jinp{flex:1;background:var(--bg3);border:1px solid var(--bd2);border-radius:var(--rs);
+      color:var(--txt);font-family:var(--HUD);font-size:22px;padding:11px;text-align:center;letter-spacing:5px;}
+    .jinp:focus{outline:none;border-color:var(--amber);}
+
+    /* 팀원 */
+    .mlist{display:flex;flex-direction:column;gap:5px;}
+    .mcard{display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:var(--rs);
+      background:var(--sf);border:1px solid var(--bd);transition:all .2s;animation:fadeUp .3s ease;}
+    .mcard.spk{border-color:var(--green);background:rgba(76,255,145,.03);}
+    .mav{width:32px;height:32px;border-radius:5px;background:var(--bg3);border:1px solid var(--bd2);
+      display:flex;align-items:center;justify-content:center;font-family:var(--HUD);
+      font-size:12px;font-weight:700;color:var(--amber);flex-shrink:0;}
+    .min{flex:1;overflow:hidden;}
+    .mname{font-size:13px;font-weight:500;}
+    .mmeta{font-family:var(--MONO);font-size:9px;color:var(--txt3);margin-top:2px;}
+    .mvol{display:flex;align-items:flex-end;gap:2px;height:16px;}
+    .mvb{width:3px;border-radius:1px;background:var(--txt3);transition:height .1s,background .2s;}
+    .mcard.spk .mvb{background:var(--green);}
+
+    /* VOX */
+    .vox-m{display:flex;align-items:flex-end;justify-content:center;gap:3px;height:34px;padding:2px 0;}
+    .vs{width:5px;border-radius:2px;background:var(--green);min-height:3px;transition:height .08s;opacity:.25;}
+    .vs.on{opacity:1;}
+    .vsr{display:flex;align-items:center;justify-content:space-between;margin-top:5px;}
+    .vstxt{font-family:var(--MONO);font-size:10px;color:var(--txt3);}
+    .vstxt.tx{color:var(--green);}
+    .txb{padding:3px 9px;border-radius:3px;font-family:var(--HUD);font-size:9px;font-weight:700;
+      letter-spacing:2px;background:rgba(76,255,145,.1);border:1px solid var(--green);color:var(--green);display:none;}
+    .txb.show{display:block;animation:blink .5s infinite;}
+
+    /* ════════════════════════════════
+       MEDIA PAGE
+    ════════════════════════════════ */
+    .mseg{display:flex;gap:5px;margin-bottom:11px;background:var(--bg3);
+      border:1px solid var(--bd);border-radius:var(--rs);padding:4px;}
+    .msb{flex:1;padding:8px;border-radius:4px;border:none;background:none;color:var(--txt3);
+      font-family:var(--HUD);font-size:10px;font-weight:700;letter-spacing:1px;cursor:pointer;transition:all .2s;}
+    .msb.on{background:var(--sf2);color:var(--amber);border:1px solid var(--bd2);}
+
+    .part{width:100%;aspect-ratio:16/7;background:var(--sf);border-radius:var(--rs);
+      border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;
+      font-size:32px;margin-bottom:11px;overflow:hidden;position:relative;}
+    .part-glow{position:absolute;inset:0;
+      background:radial-gradient(ellipse at 30% 50%,rgba(232,160,32,.1),transparent 70%);}
+    .ptitle{font-size:14px;font-weight:500;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .psub{font-size:11px;color:var(--txt3);}
+    .prog{width:100%;height:3px;background:var(--sf2);border-radius:2px;
+      margin:11px 0 5px;cursor:pointer;position:relative;}
+    .progf{height:100%;background:var(--amber);border-radius:2px;width:0%;transition:width .5s linear;position:relative;}
+    .progf::after{content:'';position:absolute;right:-5px;top:-4px;width:11px;height:11px;
+      border-radius:50%;background:var(--amber);box-shadow:0 0 6px rgba(232,160,32,.6);}
+    .ptime{display:flex;justify-content:space-between;font-family:var(--MONO);font-size:10px;color:var(--txt3);}
+    .pctrls{display:flex;align-items:center;justify-content:center;gap:13px;margin:12px 0;}
+    .cb{width:40px;height:40px;border-radius:50%;border:none;background:var(--sf);
+      color:var(--txt2);font-size:16px;display:flex;align-items:center;justify-content:center;
+      cursor:pointer;transition:all .15s;}
+    .cb:active{transform:scale(.88);}
+    .cbp{width:52px;height:52px;background:var(--amber);color:var(--bg);font-size:20px;
+      box-shadow:0 0 16px rgba(232,160,32,.4);}
+    .cbp.playing{animation:pulse-a 1.5s infinite;}
+    .volr{display:flex;align-items:center;gap:9px;padding:7px 0;border-top:1px solid var(--bd);margin-top:5px;}
+    .vico{font-size:15px;flex-shrink:0;}
+    .vval{font-family:var(--MONO);font-size:11px;color:var(--amber);width:32px;text-align:right;}
+
+    /* 플레이리스트 MP3 */
+    .plist{display:flex;flex-direction:column;gap:3px;margin-top:7px;}
+    .pli{display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:var(--rs);
+      background:var(--sf);border:1px solid transparent;cursor:pointer;transition:all .15s;}
+    .pli.on{border-color:var(--amber);background:rgba(232,160,32,.04);}
+    .pln{font-family:var(--MONO);font-size:10px;color:var(--txt3);width:16px;text-align:center;}
+    .pli.on .pln{color:var(--amber);}
+    .pli-i{flex:1;overflow:hidden;}
+    .pli-t{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .pli-d{font-family:var(--MONO);font-size:10px;color:var(--txt3);}
+
+    /* YouTube */
+    .ytadd{display:flex;gap:6px;margin-bottom:9px;}
+    .ytinp{flex:1;background:var(--bg3);border:1px solid var(--bd2);border-radius:var(--rs);
+      color:var(--txt);font-size:12px;padding:9px 11px;}
+    .ytinp:focus{outline:none;border-color:var(--amber);}
+    .ytpw{border-radius:var(--rs);overflow:hidden;background:var(--sf);aspect-ratio:16/9;
+      display:flex;align-items:center;justify-content:center;color:var(--txt3);font-size:12px;
+      border:1px solid var(--bd);margin-bottom:9px;}
+    .ytlist{display:flex;flex-direction:column;gap:3px;}
+    .yti{display:flex;align-items:center;gap:7px;padding:8px 9px;border-radius:var(--rs);
+      background:var(--sf);border:1px solid transparent;cursor:pointer;transition:all .15s;}
+    .yti.on{border-color:var(--cyan);background:rgba(0,184,255,.04);}
+    .ytth{width:46px;height:26px;border-radius:3px;background:var(--bg3);
+      border:1px solid var(--bd);overflow:hidden;flex-shrink:0;object-fit:cover;}
+    .yti-i{flex:1;overflow:hidden;}
+    .yti-t{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .yti-s{font-size:10px;color:var(--txt3);margin-top:1px;}
+    .ytdel{width:26px;height:26px;border-radius:4px;border:none;background:transparent;
+      color:var(--txt3);font-size:13px;cursor:pointer;flex-shrink:0;
+      display:flex;align-items:center;justify-content:center;}
+    .ytdel:active{color:var(--red);}
+
+    /* ════════════════════════════════
+       SETTINGS PAGE
+    ════════════════════════════════ */
+    .acc{margin-bottom:6px;}
+    .acc-hd{display:flex;align-items:center;justify-content:space-between;padding:12px 13px;
+      background:var(--bg2);border:1px solid var(--bd);border-radius:var(--rs);cursor:pointer;transition:border-color .2s;}
+    .acc.open>.acc-hd{border-bottom-left-radius:0;border-bottom-right-radius:0;border-color:var(--amber);}
+    .acc-t{display:flex;align-items:center;gap:9px;font-family:var(--HUD);font-size:11px;font-weight:700;letter-spacing:1.5px;}
+    .acc-i{font-size:15px;}
+    .acc-a{color:var(--txt3);font-size:10px;transition:transform .3s;}
+    .acc.open .acc-a{transform:rotate(180deg);}
+    .acc-b{display:none;background:var(--bg2);padding:11px 13px;
+      border:1px solid var(--amber);border-top:none;
+      border-bottom-left-radius:var(--rs);border-bottom-right-radius:var(--rs);}
+    .acc.open .acc-b{display:block;}
+    .sp3g{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:7px 0;}
+    .sp3l{font-family:var(--HUD);font-size:9px;letter-spacing:1px;color:var(--txt3);text-align:center;margin-bottom:4px;}
+    .trow{display:flex;gap:6px;margin-top:9px;}
+    .trow .btn{flex:1;}
+
+    /* ════════════════════════════════
+       LOGS PAGE
+    ════════════════════════════════ */
+    .lhd{display:flex;align-items:center;justify-content:space-between;margin-bottom:11px;}
+    .lhdt{font-family:var(--HUD);font-size:13px;font-weight:700;letter-spacing:2px;}
+    .litem{background:var(--bg2);border:1px solid var(--bd);border-radius:var(--rs);
+      padding:11px;margin-bottom:6px;display:flex;align-items:center;gap:9px;animation:fadeUp .3s ease;}
+    .lico{width:36px;height:36px;border-radius:5px;background:var(--sf);border:1px solid var(--bd);
+      display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;}
+    .linf{flex:1;overflow:hidden;}
+    .lname{font-size:13px;font-weight:500;margin-bottom:3px;}
+    .lmeta{font-family:var(--MONO);font-size:10px;color:var(--txt3);}
+    .lacts{display:flex;gap:4px;flex-shrink:0;}
+    .lact{width:30px;height:30px;border-radius:4px;border:1px solid var(--bd);background:var(--sf);
+      color:var(--txt2);font-size:13px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;}
+    .lact:active{transform:scale(.9);}
+    .lact.del{border-color:rgba(255,59,59,.3);color:var(--red);}
+    .empty{text-align:center;padding:55px 20px;color:var(--txt3);}
+    .empty-i{font-size:42px;margin-bottom:11px;}
+
+    /* ── Overlays ── */
+    .overlay{display:none;position:fixed;inset:0;z-index:200;background:rgba(8,12,20,.94);
+      align-items:center;justify-content:center;flex-direction:column;gap:16px;text-align:center;}
+    .overlay.show{display:flex;}
+    .ov-title{font-family:var(--HUD);font-size:15px;font-weight:700;letter-spacing:3px;color:var(--amber);}
+    .ov-big{font-family:var(--HUD);font-size:60px;font-weight:900;color:var(--txt);}
+    .ov-sub{font-size:13px;color:var(--txt2);}
+
+    .cfmbox{background:var(--bg2);border:1px solid var(--bd2);border-radius:var(--r);
+      padding:22px;width:275px;text-align:center;}
+    .cfmt{font-family:var(--HUD);font-size:13px;font-weight:700;letter-spacing:2px;margin-bottom:9px;}
+    .cfmm{font-size:13px;color:var(--txt2);margin-bottom:18px;line-height:1.6;}
+    .cfmb{display:flex;gap:7px;}
+
+    /* 주행 정보 상세 오버레이 */
+    .detail-box{background:var(--bg2);border:1px solid var(--bd2);border-radius:var(--r);
+      padding:20px;width:310px;max-height:80vh;overflow-y:auto;text-align:left;}
+    .detail-title{font-family:var(--HUD);font-size:12px;font-weight:700;letter-spacing:2px;
+      color:var(--amber);margin-bottom:14px;text-align:center;}
+    .detail-row{display:flex;justify-content:space-between;padding:7px 0;
+      border-bottom:1px solid var(--bd);font-size:12px;}
+    .detail-row:last-child{border-bottom:none;}
+    .detail-k{color:var(--txt3);}
+    .detail-v{font-family:var(--MONO);color:var(--txt);}
+
+    /* ── 재생목록 관리 ── */
+    .pl-item{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:var(--rs);
+      background:var(--sf);border:1px solid transparent;cursor:pointer;transition:all .15s;margin-bottom:4px;}
+    .pl-item.on{border-color:var(--amber);background:rgba(232,160,32,.05);}
+    .pl-ico{font-size:18px;flex-shrink:0;}
+    .pl-info{flex:1;overflow:hidden;}
+    .pl-name{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .pl-cnt{font-family:var(--MONO);font-size:10px;color:var(--txt3);margin-top:2px;}
+    .pl-acts{display:flex;gap:4px;flex-shrink:0;}
+    .pl-act{width:28px;height:28px;border-radius:4px;border:1px solid var(--bd);background:var(--sf2);
+      color:var(--txt2);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;}
+    .pl-act.del{border-color:rgba(255,59,59,.3);color:var(--red);}
+    .pl-act:active{transform:scale(.9);}
+    .pl-new-btn{display:flex;align-items:center;justify-content:center;padding:10px;
+      border-radius:var(--rs);border:1px dashed var(--bd2);color:var(--txt3);
+      font-size:13px;cursor:pointer;transition:all .2s;margin-top:2px;}
+    .pl-new-btn:active{border-color:var(--amber);color:var(--amber);}
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <header class="hdr">
+    <div class="logo">RIDER<em>COM</em></div>
+    <div class="hdr-r">
+      <div class="badge"><div class="dot" id="dot-p2p"></div><span id="lbl-p2p">OFFLINE</span></div>
+      <div class="badge"><div class="dot" id="dot-esp"></div><span>ESP</span></div>
+    </div>
+  </header>
+
+  <div class="pages">
+
+    <!-- ════ HOME : 주행 ════ -->
+    <div class="page active" id="page-home">
+
+      <div class="dsbar">
+        <span class="dst" id="dst">대기 중</span>
+        <span class="dtimer" id="dtimer">00:00:00</span>
+      </div>
+
+      <!-- 속도계 -->
+      <div class="card" style="padding:9px;">
+        <div class="spedo">
+          <div class="sp-ring-wrap">
+            <svg viewBox="0 0 176 176" width="176" height="176">
+              <circle class="sr-bg" cx="88" cy="88" r="80"/>
+              <circle class="sr-fill" id="sr" cx="88" cy="88" r="80"/>
+            </svg>
+            <div class="sp-center">
+              <div class="sp-num" id="spn">0</div>
+              <div class="sp-unit">KM/H</div>
+            </div>
+          </div>
+        </div>
+        <div class="sp-chips">
+          <div class="sp-chip" id="sc1">-- km/h</div>
+          <div class="sp-chip" id="sc2">-- km/h</div>
+          <div class="sp-chip" id="sc3">-- km/h</div>
+        </div>
+      </div>
+
+      <!-- 통계 -->
+      <div class="sgrid">
+        <div class="sbox"><div class="sv" id="sv-dist">0.0</div><div class="sl">거리 km</div></div>
+        <div class="sbox"><div class="sv" id="sv-max">0</div><div class="sl">최고속도</div></div>
+        <div class="sbox"><div class="sv" id="sv-avg">0</div><div class="sl">평균속도</div></div>
+        <div class="sbox"><div class="sv" id="sv-ride">00:00</div><div class="sl">주행시간</div></div>
+        <div class="sbox"><div class="sv" id="sv-rest">00:00</div><div class="sl">휴식시간</div></div>
+        <div class="sbox"><div class="sv" id="sv-temp">--</div><div class="sl">외부°C</div></div>
+      </div>
+
+      <!-- 날씨 -->
+      <div class="card">
+        <div class="ch">날씨</div>
+        <div class="wrow">
+          <div class="wico" id="w-ico">🌤</div>
+          <div><div class="wtemp" id="w-temp">-- °C</div><div class="wdesc" id="w-desc">정보 없음</div></div>
+          <div class="wext"><div class="wextv" id="w-ext">-- °C</div><div class="wextl">ESP 센서</div></div>
+        </div>
+      </div>
+
+      <!-- 경보 -->
+      <div class="card">
+        <div class="ch">경보</div>
+        <div class="arow">
+          <div class="achip" id="ac-os"><div class="aled"></div>OVERSPEED</div>
+          <div class="achip on" id="ac-s1"><div class="aled"></div>SP·1</div>
+          <div class="achip on" id="ac-s2"><div class="aled"></div>SP·2</div>
+          <div class="achip on" id="ac-s3"><div class="aled"></div>SP·3</div>
+        </div>
+      </div>
+
+      <!-- 주행 시작 -->
+      <button class="btn btn-g dbtn" id="btn-drive">▶ &nbsp;주행 시작</button>
+
+    </div><!-- /home -->
+
+    <!-- ════ COMM : 통신 ════ -->
+    <div class="page" id="page-comm">
+
+      <div class="card">
+        <div class="ch">접속 코드</div>
+        <div class="codearea">
+          <div class="clbl">MY ROOM CODE</div>
+          <div class="cnum" id="mycode">──────</div>
+          <div class="ctimer" id="ctimer"></div>
+        </div>
+        <button class="btn btn-a" id="btn-create">🚀 &nbsp;방 개설</button>
+        <div style="text-align:center;font-size:11px;color:var(--txt3);margin:9px 0;">— 또는 코드로 접속 —</div>
+        <div style="display:flex;gap:7px;">
+          <input class="jinp" id="jinp" type="tel" maxlength="6" placeholder="000000"/>
+          <button class="btn btn-o btn-sm" id="btn-join" style="width:auto;white-space:nowrap;">접속</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="ch">팀원 <span style="color:var(--amber);font-family:var(--MONO);" id="mcnt">0</span><span style="color:var(--txt3)">/50</span></div>
+        <div class="mlist" id="mlist"></div>
+        <div id="mempty" style="text-align:center;padding:16px 0;color:var(--txt3);font-size:12px;">팀원이 없습니다</div>
+      </div>
+
+      <div class="card">
+        <div class="ch">VOX 레벨</div>
+        <div class="vox-m" id="voxm"></div>
+        <div class="vsr">
+          <span class="vstxt" id="vst">대기 중</span>
+          <span class="txb" id="txb">TX</span>
+        </div>
+      </div>
+
+    </div><!-- /comm -->
+
+    <!-- ════ MEDIA ════ -->
+    <div class="page" id="page-media">
+
+      <div class="mseg">
+        <button class="msb on" id="msb-mp3" onclick="switchMedia('mp3')">🎵 MP3</button>
+        <button class="msb" id="msb-yt" onclick="switchMedia('yt')">▶ YOUTUBE</button>
+      </div>
+
+      <!-- MP3 -->
+      <div id="mp3-panel">
+        <div class="card">
+          <div class="part"><div class="part-glow"></div><span id="mp3-art">🎵</span></div>
+          <div style="margin-bottom:10px;">
+            <div class="ptitle" id="mp3-title">재생목록을 선택하세요</div>
+            <div class="psub" id="mp3-sub">--</div>
+          </div>
+          <div class="prog" id="mp3-progbar"><div class="progf" id="mp3-prog"></div></div>
+          <div class="ptime"><span id="mp3-cur">0:00</span><span id="mp3-dur">0:00</span></div>
+          <div class="pctrls">
+            <button class="cb" id="mp3-prev">⏮</button>
+            <button class="cb cbp" id="mp3-play">▶</button>
+            <button class="cb" id="mp3-next">⏭</button>
+          </div>
+          <div class="volr">
+            <span class="vico">🔊</span>
+            <div style="flex:1;"><input type="range" min="0" max="100" value="70" id="mp3-vol"
+              oninput="G('mp3-vv').textContent=this.value+'%';setMp3Vol(this.value)"/></div>
+            <span class="vval" id="mp3-vv">70%</span>
+          </div>
+        </div>
+
+        <!-- 재생목록 관리 -->
+        <div class="card">
+          <div class="ch">재생목록</div>
+          <div id="mp3-pl-wrap"></div>
+        </div>
+
+        <!-- 현재 재생목록 트랙 -->
+        <div class="card" id="mp3-track-card" style="display:none;">
+          <div class="ch" id="mp3-track-title">트랙 목록</div>
+          <button class="btn btn-o" id="btn-mp3-open" style="margin-bottom:7px;">📂 &nbsp;파일 추가</button>
+          <input type="file" id="mp3-file" accept="audio/*" multiple style="display:none"/>
+          <div class="plist" id="mp3-list"></div>
+        </div>
+      </div>
+
+      <!-- YouTube -->
+      <div id="yt-panel" style="display:none;">
+        <div class="card">
+          <div class="ch">YouTube 플레이어</div>
+          <div class="ytpw" id="yt-pw"><span>URL을 추가하면 여기에 재생됩니다</span></div>
+          <div class="volr">
+            <span class="vico">🔊</span>
+            <div style="flex:1;"><input type="range" min="0" max="100" value="70" id="yt-vol"
+              oninput="G('yt-vv').textContent=this.value+'%';setYtVol(this.value)"/></div>
+            <span class="vval" id="yt-vv">70%</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="ch">재생 목록</div>
+          <div class="ytadd">
+            <input class="ytinp" id="yt-url-inp" placeholder="YouTube URL 또는 재생목록 URL 입력"/>
+            <button class="btn btn-a btn-sm" id="btn-yt-add">추가</button>
+          </div>
+          <div class="ytlist" id="yt-list"><div style="text-align:center;padding:13px;color:var(--txt3);font-size:12px;">URL을 추가하세요</div></div>
+        </div>
+      </div>
+
+    </div><!-- /media -->
+
+    <!-- ════ SETTINGS ════ -->
+    <div class="page" id="page-settings">
+
+      <!-- 통신 -->
+      <div class="acc" id="acc-comm">
+        <div class="acc-hd" onclick="toggleAcc(this)">
+          <div class="acc-t"><span class="acc-i">📡</span>통신</div><span class="acc-a">▼</span>
+        </div>
+        <div class="acc-b">
+          <div class="slr">
+            <div class="slh"><span class="sln">🎙 마이크 볼륨</span><span class="slv" id="s-mv">80%</span></div>
+            <input type="range" min="0" max="100" value="80" id="s-mic"
+              oninput="G('s-mv').textContent=this.value+'%';saveSetting('s-mic',this.value)"/>
+          </div>
+          <div class="slr">
+            <div class="slh"><span class="sln">🔊 수신 볼륨</span><span class="slv" id="s-rv">80%</span></div>
+            <input type="range" min="0" max="100" value="80" id="s-rcv"
+              oninput="G('s-rv').textContent=this.value+'%';saveSetting('s-rcv',this.value)"/>
+          </div>
+          <div class="slr">
+            <div class="slh"><span class="sln">🎚 VOX 감도</span><span class="slv" id="s-vv">50%</span></div>
+            <input type="range" min="0" max="100" value="50" id="s-vox"
+              oninput="G('s-vv').textContent=this.value+'%';saveSetting('s-vox',this.value)"/>
+          </div>
+          <div class="tr">
+            <div><div class="trl">노이즈 필터</div><div class="trs">바람·주변소음 제거</div></div>
+            <label class="sw"><input type="checkbox" id="s-noise" checked onchange="saveSetting('s-noise',this.checked)"/><span class="sw-t"></span></label>
+          </div>
+          <div class="tr">
+            <div><div class="trl">VOX 자동 송신</div><div class="trs">소리 감지 시 자동 전송</div></div>
+            <label class="sw"><input type="checkbox" id="s-vox-on" checked onchange="saveSetting('s-vox-on',this.checked)"/><span class="sw-t"></span></label>
+          </div>
+          <div class="trow">
+            <button class="btn btn-o" id="btn-mic-test">🎙 마이크 테스트 (3초)</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 미디어 -->
+      <div class="acc" id="acc-media">
+        <div class="acc-hd" onclick="toggleAcc(this)">
+          <div class="acc-t"><span class="acc-i">🎵</span>미디어</div><span class="acc-a">▼</span>
+        </div>
+        <div class="acc-b">
+          <div class="tr">
+            <div><div class="trl">미디어 사용</div><div class="trs">MP3 / YouTube 재생 허용</div></div>
+            <label class="sw"><input type="checkbox" id="s-media" checked onchange="saveSetting('s-media',this.checked)"/><span class="sw-t"></span></label>
+          </div>
+          <div class="slr">
+            <div class="slh"><span class="sln">🎵 MP3 볼륨</span><span class="slv" id="s-mp3v">70%</span></div>
+            <input type="range" min="0" max="100" value="70" id="s-mp3"
+              oninput="G('s-mp3v').textContent=this.value+'%';saveSetting('s-mp3',this.value)"/>
+          </div>
+          <div class="slr">
+            <div class="slh"><span class="sln">▶ YouTube 볼륨</span><span class="slv" id="s-ytv">70%</span></div>
+            <input type="range" min="0" max="100" value="70" id="s-yt"
+              oninput="G('s-ytv').textContent=this.value+'%';saveSetting('s-yt',this.value)"/>
+          </div>
+        </div>
+      </div>
+
+      <!-- 경보 -->
+      <div class="acc" id="acc-alarm">
+        <div class="acc-hd" onclick="toggleAcc(this)">
+          <div class="acc-t"><span class="acc-i">🚨</span>경보</div><span class="acc-a">▼</span>
+        </div>
+        <div class="acc-b">
+          <div class="tr">
+            <div><div class="trl">과속 경보</div><div class="trs">설정 속도 초과 시 경보</div></div>
+            <label class="sw"><input type="checkbox" id="s-os" checked onchange="saveSetting('s-os',this.checked)"/><span class="sw-t"></span></label>
+          </div>
+          <div class="slr">
+            <div class="slh"><span class="sln">과속 기준 속도</span><span class="slv" id="s-osv">100 km/h</span></div>
+            <input type="range" min="30" max="200" value="100" step="5" id="s-oslimit"
+              oninput="G('s-osv').textContent=this.value+' km/h';saveSetting('s-oslimit',this.value);updateChips()"/>
+          </div>
+          <div style="border-top:1px solid var(--bd);margin:9px 0;padding-top:9px;">
+            <div style="font-family:var(--HUD);font-size:9px;letter-spacing:2px;color:var(--txt3);margin-bottom:7px;">속도 확인 알림 지점 (km/h)</div>
+            <div class="sp3g">
+              <div><div class="sp3l">지점 1</div><input class="inp" type="number" id="s-sp1" value="60" min="0" max="300" oninput="saveSetting('s-sp1',this.value);updateChips()"/></div>
+              <div><div class="sp3l">지점 2</div><input class="inp" type="number" id="s-sp2" value="80" min="0" max="300" oninput="saveSetting('s-sp2',this.value);updateChips()"/></div>
+              <div><div class="sp3l">지점 3</div><input class="inp" type="number" id="s-sp3" value="100" min="0" max="300" oninput="saveSetting('s-sp3',this.value);updateChips()"/></div>
+            </div>
+          </div>
+          <div class="tr">
+            <div><div class="trl">속도 지점 알림</div><div class="trs">각 지점 통과 시 알림</div></div>
+            <label class="sw"><input type="checkbox" id="s-spt" checked onchange="saveSetting('s-spt',this.checked)"/><span class="sw-t"></span></label>
+          </div>
+          <div class="slr">
+            <div class="slh"><span class="sln">🔔 경보음 볼륨</span><span class="slv" id="s-almv">80%</span></div>
+            <input type="range" min="0" max="100" value="80" id="s-alm"
+              oninput="G('s-almv').textContent=this.value+'%';saveSetting('s-alm',this.value)"/>
+          </div>
+          <div class="trow">
+            <button class="btn btn-w" id="btn-alm-test">🔔 경보음 테스트</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 녹음 옵션 -->
+      <div class="acc" id="acc-rec">
+        <div class="acc-hd" onclick="toggleAcc(this)">
+          <div class="acc-t"><span class="acc-i">🎤</span>대화 녹음</div><span class="acc-a">▼</span>
+        </div>
+        <div class="acc-b">
+          <div class="tr">
+            <div><div class="trl">주행 시작 시 자동 녹음</div><div class="trs">송수신 음성 전체 녹음 (1파일)</div></div>
+            <label class="sw"><input type="checkbox" id="s-rec" onchange="saveSetting('s-rec',this.checked)"/><span class="sw-t"></span></label>
+          </div>
+          <div style="font-size:11px;color:var(--txt3);margin-top:7px;line-height:1.7;">
+            주행 시작과 함께 녹음이 자동으로 시작되며,<br>주행 종료 시 GPX와 함께 저장됩니다.
+          </div>
+        </div>
+      </div>
+
+      <!-- ESP32 -->
+      <div class="acc" id="acc-esp">
+        <div class="acc-hd" onclick="toggleAcc(this)">
+          <div class="acc-t"><span class="acc-i">📟</span>ESP32 연동</div><span class="acc-a">▼</span>
+        </div>
+        <div class="acc-b">
+          <div class="tr">
+            <div><div class="trl">ESP32 연결</div><div class="trs">스마트폰 핫스팟 → WebSocket</div></div>
+            <label class="sw"><input type="checkbox" id="s-esp" onchange="toggleEsp(this.checked)"/><span class="sw-t"></span></label>
+          </div>
+          <div class="slr">
+            <div style="font-size:11px;color:var(--txt3);margin-bottom:5px;">WebSocket 주소</div>
+            <input class="inp inp-l" type="text" id="s-espaddr" value="ws://esp32.local:81"
+              onchange="saveSetting('s-espaddr',this.value)"/>
+          </div>
+          <div class="trow">
+            <button class="btn btn-o" id="btn-esp-conn">🔗 연결 시도</button>
+          </div>
+          <div style="font-family:var(--MONO);font-size:10px;color:var(--txt3);text-align:center;margin-top:7px;" id="esp-st">연결 안됨</div>
+        </div>
+      </div>
+
+      <!-- OpenWeatherMap -->
+      <div class="acc" id="acc-weather">
+        <div class="acc-hd" onclick="toggleAcc(this)">
+          <div class="acc-t"><span class="acc-i">🌤</span>날씨 API</div><span class="acc-a">▼</span>
+        </div>
+        <div class="acc-b">
+          <div class="slr">
+            <div style="font-size:11px;color:var(--txt3);margin-bottom:5px;">OpenWeatherMap API Key</div>
+            <input class="inp inp-l" type="text" id="s-wkey" placeholder="API 키 입력"
+              onchange="saveSetting('s-wkey',this.value)"/>
+          </div>
+          <div style="font-size:11px;color:var(--txt3);margin-top:6px;line-height:1.7;">
+            주행 시작 시 현재 위치의 날씨를 자동으로 가져옵니다.<br>
+            <a href="https://openweathermap.org/api" target="_blank" style="color:var(--cyan);">openweathermap.org</a> 에서 무료 키 발급
+          </div>
+        </div>
+      </div>
+
+      <!-- 저장 폴더 -->
+      <div class="acc" id="acc-savefolder">
+        <div class="acc-hd" onclick="toggleAcc(this)">
+          <div class="acc-t"><span class="acc-i">📁</span>저장 폴더</div><span class="acc-a">▼</span>
+        </div>
+        <div class="acc-b">
+          <div style="font-size:11px;color:var(--txt3);margin-bottom:10px;line-height:1.7;">
+            주행 기록(GPX, TXT, 녹음)을 저장할 폴더를 지정합니다.<br>
+            Android: 폴더 직접 지정 저장 가능<br>
+            iOS: 파일 다운로드 방식으로 저장
+          </div>
+          <div style="background:var(--bg3);border:1px solid var(--bd2);border-radius:var(--rs);
+            padding:10px 12px;margin-bottom:10px;font-family:var(--MONO);font-size:12px;
+            color:var(--txt2);min-height:36px;" id="save-folder-path">
+            폴더 미지정 (다운로드 방식)
+          </div>
+          <div class="trow">
+            <button class="btn btn-a" id="btn-select-folder" onclick="selectSaveFolder()">
+              📁 저장 폴더 선택
+            </button>
+          </div>
+          <div style="font-size:10px;color:var(--txt3);text-align:center;margin-top:7px;" id="fsa-support">
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /settings -->
+
+    <!-- ════ LOGS ════ -->
+    <div class="page" id="page-logs">
+      <div class="lhd">
+        <div class="lhdt">주행 기록</div>
+        <button class="btn btn-o btn-sm" id="btn-clearall">전체 삭제</button>
+      </div>
+      <div id="llist"></div>
+      <div class="empty" id="lempty" style="display:none;">
+        <div class="empty-i">📂</div>
+        <div>저장된 주행 기록이 없습니다</div>
+      </div>
+    </div><!-- /logs -->
+
+  </div><!-- /pages -->
+
+  <nav class="tabs">
+    <button class="tb on" onclick="switchTab('home',this)"><span class="ti">🏍</span><span class="tl">주행</span></button>
+    <button class="tb" onclick="switchTab('comm',this)"><span class="ti">📡</span><span class="tl">통신</span></button>
+    <button class="tb" onclick="switchTab('media',this)"><span class="ti">🎵</span><span class="tl">미디어</span></button>
+    <button class="tb" onclick="switchTab('settings',this)"><span class="ti">⚙️</span><span class="tl">설정</span></button>
+    <button class="tb" onclick="switchTab('logs',this)"><span class="ti">📋</span><span class="tl">기록</span></button>
+  </nav>
+</div>
+
+<!-- 마이크 테스트 오버레이 -->
+<div class="overlay" id="ov-mic">
+  <div class="ov-title">마이크 테스트</div>
+  <div class="ov-big" id="mic-timer">3</div>
+  <div class="ov-sub" id="mic-st">🎙 말씀하세요...</div>
+  <button class="btn btn-o btn-sm" onclick="cancelMicTest()" style="width:auto;">취소</button>
+</div>
+
+<!-- 확인 다이얼로그 -->
+<div class="overlay" id="ov-cfm" style="z-index:300;">
+  <div class="cfmbox">
+    <div class="cfmt" id="cfm-title">확인</div>
+    <div class="cfmm" id="cfm-msg"></div>
+    <div class="cfmb">
+      <button class="btn btn-o" onclick="cfmResolve(false)" style="flex:1;">취소</button>
+      <button class="btn btn-r" id="cfm-ok" onclick="cfmResolve(true)" style="flex:1;">확인</button>
+    </div>
+  </div>
+</div>
+
+<!-- 주행 정보 상세 -->
+<div class="overlay" id="ov-detail" style="z-index:300;">
+  <div class="detail-box" id="detail-content"></div>
+  <button class="btn btn-o btn-sm" onclick="G('ov-detail').classList.remove('show')" style="width:auto;">닫기</button>
+</div>
+
+<script>
+/* ══════════════════════════════════════════
+   CORE UTILS
+══════════════════════════════════════════ */
+const G = id => document.getElementById(id);
+const pad = n => String(n).padStart(2,'0');
+const fmtTime = s => {
+  const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),ss=s%60;
+  return h>0?`${pad(h)}:${pad(m)}:${pad(ss)}`:`${pad(m)}:${pad(ss)}`;
+};
+const fmtHMS = s => `${pad(Math.floor(s/3600))}:${pad(Math.floor((s%3600)/60))}:${pad(s%60)}`;
+
+/* ══════════════════════════════════════════
+   SERVICE WORKER 등록
+══════════════════════════════════════════ */
+if('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(()=>{});
+  });
+}
+
+/* ══════════════════════════════════════════
+   SETTINGS (localStorage)
+══════════════════════════════════════════ */
+const SETTINGS = [
+  's-mic','s-rcv','s-vox','s-noise','s-vox-on',
+  's-media','s-mp3','s-yt',
+  's-os','s-oslimit','s-sp1','s-sp2','s-sp3','s-spt','s-alm',
+  's-rec','s-esp','s-espaddr','s-wkey'
+];
+function saveSetting(id, val) { localStorage.setItem('rc-'+id, val); }
+function loadSettings() {
+  SETTINGS.forEach(id => {
+    const el = G(id); if(!el) return;
+    const v = localStorage.getItem('rc-'+id);
+    if(v === null) return;
+    if(el.type === 'checkbox') el.checked = (v === 'true');
+    else el.value = v;
+    // 슬라이더 라벨 동기화
+    const labelMap = {
+      's-mic':'s-mv','s-rcv':'s-rv','s-vox':'s-vv',
+      's-mp3':'s-mp3v','s-yt':'s-ytv','s-alm':'s-almv',
+      's-oslimit':'s-osv'
+    };
+    if(labelMap[id]) {
+      const unit = id==='s-oslimit' ? ' km/h' : '%';
+      G(labelMap[id]).textContent = v + unit;
+    }
+  });
+}
+
+/* ══════════════════════════════════════════
+   TAB
+══════════════════════════════════════════ */
+function switchTab(page, btn) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tb').forEach(b=>b.classList.remove('on'));
+  G('page-'+page).classList.add('active');
+  btn.classList.add('on');
+}
+
+/* ══════════════════════════════════════════
+   ACCORDION
+══════════════════════════════════════════ */
+function toggleAcc(hd) { hd.parentElement.classList.toggle('open'); }
+
+/* ══════════════════════════════════════════
+   MEDIA TAB
+══════════════════════════════════════════ */
+function switchMedia(t) {
+  G('mp3-panel').style.display = t==='mp3'?'block':'none';
+  G('yt-panel').style.display  = t==='yt' ?'block':'none';
+  G('msb-mp3').classList.toggle('on', t==='mp3');
+  G('msb-yt').classList.toggle('on',  t==='yt');
+}
+
+/* ══════════════════════════════════════════
+   CONFIRM DIALOG
+══════════════════════════════════════════ */
+let cfmCb = null;
+function confirm2(title, msg, okLbl='확인') {
+  return new Promise(resolve => {
+    G('cfm-title').textContent = title;
+    G('cfm-msg').textContent = msg;
+    G('cfm-ok').textContent = okLbl;
+    G('ov-cfm').classList.add('show');
+    cfmCb = resolve;
+  });
+}
+function cfmResolve(v) {
+  G('ov-cfm').classList.remove('show');
+  if(cfmCb){ cfmCb(v); cfmCb=null; }
+}
+
+/* ══════════════════════════════════════════
+   SPEED CHIPS
+══════════════════════════════════════════ */
+function updateChips() {
+  [1,2,3].forEach(i => {
+    const v = parseInt(G('s-sp'+i).value)||0;
+    G('sc'+i).textContent = v + ' km/h';
+  });
+}
+
+/* ══════════════════════════════════════════
+   SPEEDOMETER RING
+══════════════════════════════════════════ */
+const RING_CIRC = 2 * Math.PI * 80; // ~502.65
+function setSpeed(kmh) {
+  const lim = parseInt(G('s-oslimit').value)||100;
+  const pct = Math.min(kmh/200, 1);
+  G('sr').style.strokeDashoffset = RING_CIRC*(1-pct);
+  G('spn').textContent = Math.round(kmh);
+  const el = G('spn');
+  if(kmh >= lim){ G('sr').style.stroke='var(--red)'; el.className='sp-num over'; }
+  else if(kmh >= lim*0.9){ G('sr').style.stroke='var(--warn)'; el.className='sp-num warn'; }
+  else{ G('sr').style.stroke='var(--amber)'; el.className='sp-num'; }
+
+  // 경보 칩 통과 체크
+  if(driving) {
+    [1,2,3].forEach(i => {
+      const sp = parseInt(G('s-sp'+i).value)||0;
+      const chip = G('sc'+i);
+      if(kmh >= sp) chip.classList.add('passed');
+      else chip.classList.remove('passed');
+    });
+    // 과속 경보
+    if(G('s-os').checked && kmh >= lim) {
+      G('ac-os').classList.add('trig');
+      startOverspeedAlarm();
+    } else {
+      G('ac-os').classList.remove('trig');
+      stopOverspeedAlarm();
+    }
+  }
+}
+
+/* ══════════════════════════════════════════
+   GPS & DRIVE STATE
+══════════════════════════════════════════ */
+let driving = false, driveInterval = null, driveSec = 0;
+let rideSec = 0, restSec = 0, totalDist = 0, maxSpeed = 0, speedSamples = [];
+let gpxPoints = [], lastPos = null, watchId = null;
+let driveStartTime = null, driveEndTime = null;
+let weatherData = null;
+
+G('btn-drive').addEventListener('click', async () => {
+  if (!driving) {
+    driving = true;
+    driveSec = rideSec = restSec = 0;
+    totalDist = maxSpeed = 0; speedSamples = []; gpxPoints = []; lastPos = null;
+    driveStartTime = new Date();
+    G('btn-drive').className = 'btn btn-r dbtn running';
+    G('btn-drive').innerHTML = '⏹ &nbsp;주행 종료';
+    G('dst').textContent = '주행 중'; G('dst').classList.add('on');
+    clearInterval(driveInterval);
+    driveInterval = setInterval(tickDrive, 1000);
+    startGPS();
+    fetchWeather();
+    if(G('s-rec').checked) startRecording();
+  } else {
+    const ok = await confirm2('주행 종료','주행을 종료하고 기록을 저장할까요?','저장');
+    if(!ok) return;
+    stopDrive();
+  }
+});
+
+function tickDrive() {
+  driveSec++;
+  const spd = parseFloat(G('spn').textContent)||0;
+  if(spd < 3) restSec++; else rideSec++;
+  if(speedSamples.length > 0) {
+    const avg = speedSamples.reduce((a,b)=>a+b,0)/speedSamples.length;
+    G('sv-avg').textContent = avg.toFixed(0);
+  }
+  G('dtimer').textContent = fmtHMS(driveSec);
+  G('sv-ride').textContent = fmtTime(rideSec);
+  G('sv-rest').textContent = fmtTime(restSec);
+}
+
+function stopDrive() {
+  driving = false;
+  driveEndTime = new Date();
+  clearInterval(driveInterval);
+  stopOverspeedAlarm();
+  if(watchId) navigator.geolocation.clearWatch(watchId);
+  G('btn-drive').className = 'btn btn-g dbtn';
+  G('btn-drive').innerHTML = '▶ &nbsp;주행 시작';
+  G('dst').textContent = '대기 중'; G('dst').classList.remove('on');
+  [1,2,3].forEach(i=>G('sc'+i).classList.remove('passed'));
+  G('ac-os').classList.remove('trig');
+  setSpeed(0);
+  if(G('s-rec').checked) stopRecording();
+  saveLog();
+}
+
+/* ══════════════════════════════════════════
+   GPS
+══════════════════════════════════════════ */
+function startGPS() {
+  if(!navigator.geolocation) return;
+  watchId = navigator.geolocation.watchPosition(pos => {
+    const spd = (pos.coords.speed||0)*3.6; // m/s → km/h
+    setSpeed(spd);
+    if(spd > maxSpeed){ maxSpeed=spd; G('sv-max').textContent=maxSpeed.toFixed(0); }
+    speedSamples.push(spd);
+    if(speedSamples.length > 300) speedSamples.shift();
+
+    if(lastPos) {
+      const d = haversine(lastPos.latitude,lastPos.longitude,pos.coords.latitude,pos.coords.longitude);
+      totalDist += d;
+      G('sv-dist').textContent = totalDist.toFixed(1);
+    }
+    lastPos = pos.coords;
+    gpxPoints.push({
+      lat: pos.coords.latitude, lon: pos.coords.longitude,
+      ele: pos.coords.altitude||0, time: new Date().toISOString(), spd
+    });
+  }, err=>console.warn('GPS:',err),
+  { enableHighAccuracy:true, maximumAge:1000, timeout:5000 });
+}
+
+function haversine(lat1,lon1,lat2,lon2) {
+  const R=6371, dLat=(lat2-lat1)*Math.PI/180, dLon=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+/* ══════════════════════════════════════════
+   WEATHER (OpenWeatherMap)
+══════════════════════════════════════════ */
+async function fetchWeather() {
+  const key = G('s-wkey').value.trim();
+  if(!key || !navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(async pos => {
+    try {
+      const {latitude:lat,longitude:lon} = pos.coords;
+      const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${key}&units=metric&lang=kr`;
+      const r = await fetch(url);
+      const d = await r.json();
+      weatherData = d;
+      const ico = weatherIconMap(d.weather[0].id);
+      G('w-ico').textContent = ico;
+      G('w-temp').textContent = d.main.temp.toFixed(1)+' °C';
+      G('w-desc').textContent = d.weather[0].description;
+    } catch(e){ console.warn('Weather error:', e); }
+  }, ()=>{});
+}
+
+function weatherIconMap(id) {
+  if(id >= 200 && id < 300) return '⛈';
+  if(id >= 300 && id < 400) return '🌦';
+  if(id >= 500 && id < 600) return id < 502 ? '🌧':'⛈';
+  if(id >= 600 && id < 700) return '❄️';
+  if(id >= 700 && id < 800) return '🌫';
+  if(id === 800) return '☀️';
+  if(id === 801) return '🌤';
+  if(id <= 803) return '⛅';
+  return '☁️';
+}
+
+/* ══════════════════════════════════════════
+   ALARM SYSTEM
+══════════════════════════════════════════ */
+let alarmCtx = null, alarmRunning = false, alarmOsc = null, alarmTO = null;
+
+function getAlarmCtx() {
+  if(!alarmCtx) alarmCtx = new (window.AudioContext||window.webkitAudioContext)();
+  return alarmCtx;
+}
+
+function beep(freq=1200, dur=2000, vol=0.8) {
+  const ctx = getAlarmCtx();
+  const osc = ctx.createOscillator(), gain = ctx.createGain();
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.frequency.value = freq;
+  gain.gain.value = vol;
+  osc.start(); setTimeout(()=>osc.stop(), dur);
+  return osc;
+}
+
+function startOverspeedAlarm() {
+  if(alarmRunning) return;
+  alarmRunning = true;
+  const vol = parseInt(G('s-alm').value)/100;
+  function cycle() {
+    if(!alarmRunning) return;
+    beep(1200, 2000, vol);
+    alarmTO = setTimeout(cycle, 5000); // 2초 울리고 3초 쉬고
+  }
+  cycle();
+}
+
+function stopOverspeedAlarm() {
+  alarmRunning = false;
+  clearTimeout(alarmTO);
+}
+
+// 속도 지점 알림 (1회성)
+const spPassed = {1:false,2:false,3:false};
+function checkSpeedPoints(kmh) {
+  if(!G('s-spt').checked || !driving) return;
+  [1,2,3].forEach(i => {
+    const sp = parseInt(G('s-sp'+i).value)||0;
+    if(!spPassed[i] && kmh >= sp) {
+      spPassed[i] = true;
+      beep(800+i*100, 500, parseInt(G('s-alm').value)/100);
+    }
+    if(kmh < sp-5) spPassed[i] = false; // 속도 떨어지면 리셋
+  });
+}
+
+// 경보 테스트
+G('btn-alm-test').addEventListener('click',()=>{
+  const vol = parseInt(G('s-alm').value)/100;
+  let cnt=0;
+  function t(){
+    if(cnt>=2) return;
+    beep(1200,2000,vol); cnt++;
+    setTimeout(t,5000);
+  }
+  t();
+});
+
+/* ══════════════════════════════════════════
+   PEERJS / P2P 메시 네트워크
+   ─────────────────────────────────────────
+   구조:
+   - 호스트 PeerID = "RC-{6자리코드}-host"
+   - 참가자 PeerID = "RC-{6자리코드}-{랜덤4자리}"
+   - 각 노드는 최대 MAX_CONN(4)개 피어와 연결
+   - 호스트가 접속자에게 기존 멤버 목록 전달
+   - 멤버 목록 수신 시 연결 수 부족하면 추가 연결
+   - 음성: processedStream을 직접 P2P call로 전송
+   - 릴레이 불필요 (WebRTC MediaConnection이 직접 P2P)
+══════════════════════════════════════════ */
+let peer = null, myPeerId = null, isHost = false;
+let connections = {};     // peerId → DataConnection (시그널/멤버목록용)
+let callConns = {};       // peerId → MediaConnection (음성용)
+let localStream = null;
+let roomCode = null, codeInterval = null;
+const MAX_CONN = 4;
+
+/* ── PeerJS 초기화 ── */
+function initPeer(fixedId) {
+  return new Promise((resolve, reject) => {
+    if(peer) { try{ peer.destroy(); }catch(e){} peer = null; }
+    connections = {}; callConns = {};
+
+    const opts = { debug: 0, config: {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+      ]
+    }};
+    peer = fixedId ? new Peer(fixedId, opts) : new Peer(opts);
+
+    const timeout = setTimeout(() => reject(new Error('timeout')), 10000);
+
+    peer.on('open', id => {
+      clearTimeout(timeout);
+      myPeerId = id;
+      G('dot-p2p').className = 'dot blink';
+      G('lbl-p2p').textContent = 'READY';
+      resolve(peer);
+    });
+
+    // 수신 데이터 연결
+    peer.on('connection', conn => {
+      if(Object.keys(connections).length >= MAX_CONN) {
+        conn.on('open', () => conn.close()); return;
+      }
+      handleDataConn(conn);
+    });
+
+    // 수신 음성 연결
+    peer.on('call', call => {
+      if(!processedStream) { call.close(); return; }
+      call.answer(processedStream);
+      call.on('stream', stream => attachRemoteAudio(call.peer, stream));
+      call.on('close', () => removeRemoteAudio(call.peer));
+      call.on('error', e => console.warn('call err:', e));
+      callConns[call.peer] = call;
+      updateMemberUI();
+    });
+
+    peer.on('error', e => {
+      clearTimeout(timeout);
+      console.warn('PeerJS error:', e.type);
+      if(e.type === 'unavailable-id') {
+        alert('이 코드는 이미 사용 중입니다. 잠시 후 다시 시도해주세요.');
+      } else if(e.type === 'peer-unavailable') {
+        // 개별 피어 연결 실패 - 무시
+      } else {
+        reject(e);
+      }
+    });
+
+    peer.on('disconnected', () => {
+      G('dot-p2p').className = 'dot blink';
+      G('lbl-p2p').textContent = 'RECONNECT';
+      setTimeout(() => { try{ peer.reconnect(); }catch(e){} }, 2000);
+    });
+  });
+}
+
+/* ── 데이터 연결 처리 ── */
+function handleDataConn(conn) {
+  conn.on('open', () => {
+    connections[conn.peer] = conn;
+    updateMemberUI();
+
+    // 호스트라면 새 접속자에게 현재 전체 멤버 목록 전달
+    if(isHost) {
+      const allPeers = [...Object.keys(connections), ...Object.keys(callConns)]
+        .filter(id => id !== conn.peer);
+      const unique = [...new Set(allPeers)];
+      conn.send({ type:'MEMBER_LIST', peers: unique });
+    }
+
+    // 음성 연결 시작 (아직 없으면)
+    callPeer(conn.peer);
+  });
+
+  conn.on('data', data => handleDataMsg(conn.peer, data));
+
+  conn.on('close', () => {
+    delete connections[conn.peer];
+    removeRemoteAudio(conn.peer);
+    updateMemberUI();
+    // 연결 수 부족하면 재연결 시도는 하지 않음 (1회성 시그널링)
+  });
+
+  conn.on('error', e => console.warn('data conn error:', conn.peer, e));
+}
+
+/* ── 데이터 메시지 처리 ── */
+function handleDataMsg(fromId, data) {
+  if(data.type === 'MEMBER_LIST') {
+    // 받은 멤버 목록에서 아직 연결 안 된 피어에 연결
+    // 단, 현재 연결 수가 MAX_CONN 미만일 때만
+    const currentConns = Object.keys(connections).length;
+    const candidates = data.peers.filter(pid =>
+      pid !== myPeerId &&
+      !connections[pid] &&
+      !callConns[pid]
+    );
+    // 연결 가능한 수만큼만 연결 (최대 MAX_CONN 유지)
+    const canAdd = Math.max(0, MAX_CONN - currentConns);
+    candidates.slice(0, canAdd).forEach(pid => connectToPeer(pid));
+  }
+
+  if(data.type === 'PEER_LEFT') {
+    delete connections[data.peerId];
+    removeRemoteAudio(data.peerId);
+    updateMemberUI();
+  }
+}
+
+/* ── 피어에 연결 ── */
+function connectToPeer(peerId) {
+  if(peerId === myPeerId) return;
+  if(connections[peerId]) return;
+  if(Object.keys(connections).length >= MAX_CONN) return;
+
+  const conn = peer.connect(peerId, { reliable: true, serialization: 'json' });
+  handleDataConn(conn);
+}
+
+/* ── 음성 연결 ── */
+function callPeer(peerId) {
+  if(!processedStream) return;
+  if(callConns[peerId]) return;
+
+  const call = peer.call(peerId, processedStream, {
+    constraints: { offerToReceiveAudio: true, offerToReceiveVideo: false }
+  });
+  call.on('stream', stream => attachRemoteAudio(peerId, stream));
+  call.on('close', () => { delete callConns[peerId]; removeRemoteAudio(peerId); updateMemberUI(); });
+  call.on('error', e => console.warn('call err:', peerId, e));
+  callConns[peerId] = call;
+  updateMemberUI();
+}
+
+/* ── 원격 오디오 재생 ── */
+function attachRemoteAudio(peerId, stream) {
+  let el = document.getElementById('audio-' + peerId);
+  if(!el) {
+    el = document.createElement('audio');
+    el.id = 'audio-' + peerId;
+    el.autoplay = true;
+    el.setAttribute('playsinline', '');
+    document.body.appendChild(el);
+  }
+  el.srcObject = stream;
+  el.volume = parseInt(G('s-rcv').value) / 100;
+
+  // 수신 볼륨 슬라이더 반영
+  G('s-rcv').addEventListener('input', () => { el.volume = parseInt(G('s-rcv').value) / 100; });
+}
+
+function removeRemoteAudio(peerId) {
+  const el = document.getElementById('audio-' + peerId);
+  if(el) { el.srcObject = null; el.remove(); }
+  delete callConns[peerId];
+}
+
+/* ── 팀원 UI ── */
+function updateMemberUI() {
+  const allPeers = [...new Set([...Object.keys(connections), ...Object.keys(callConns)])];
+  G('mcnt').textContent = allPeers.length;
+  G('mempty').style.display = allPeers.length ? 'none' : 'block';
+  const list = G('mlist');
+  list.innerHTML = '';
+  allPeers.forEach((pid, i) => {
+    const el = document.createElement('div');
+    el.className = 'mcard'; el.id = 'mc-' + pid;
+    const isH = pid.includes('-host');
+    const hasCall = !!callConns[pid];
+    el.innerHTML = `
+      <div class="mav">${isH ? '★' : String.fromCharCode(65+i)}</div>
+      <div class="min">
+        <div class="mname">${isH ? '호스트' : `멤버 ${i+1}`}</div>
+        <div class="mmeta">${hasCall ? '🔊 음성연결' : '📶 데이터'} · ${pid.substring(0,14)}...</div>
+      </div>
+      <div class="mvol">
+        ${[3,5,7,9,6].map(h=>`<div class="mvb" style="height:${h}px"></div>`).join('')}
+      </div>`;
+    list.appendChild(el);
+  });
+}
+
+/* ══════════════════════════════════════════
+   방 개설 / 접속
+══════════════════════════════════════════ */
+G('btn-create').addEventListener('click', async () => {
+  const stream = await getMic();
+  if(!stream) return;
+
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  const hostId = 'RC-' + code + '-host';
+
+  G('btn-create').disabled = true;
+  G('btn-create').textContent = '연결 중...';
+
+  try {
+    await initPeer(hostId);
+    isHost = true;
+    roomCode = code;
+    G('mycode').textContent = code;
+    startCodeTimer(1800);
+    G('dot-p2p').className = 'dot on';
+    G('lbl-p2p').textContent = 'HOST';
+  } catch(e) {
+    alert('방 개설에 실패했습니다. 다시 시도해주세요.');
+  } finally {
+    G('btn-create').disabled = false;
+    G('btn-create').innerHTML = '🚀 &nbsp;방 개설';
+  }
+});
+
+G('btn-join').addEventListener('click', async () => {
+  const code = G('jinp').value.trim();
+  if(code.length !== 6 || isNaN(code)) { alert('6자리 숫자 코드를 입력하세요'); return; }
+
+  const stream = await getMic();
+  if(!stream) return;
+
+  const suffix = Math.random().toString(36).substring(2, 6);
+  const myId   = 'RC-' + code + '-' + suffix;
+  const hostId = 'RC-' + code + '-host';
+
+  G('btn-join').disabled = true;
+  G('btn-join').textContent = '연결 중...';
+  G('dot-p2p').className = 'dot blink';
+  G('lbl-p2p').textContent = 'JOIN...';
+
+  try {
+    await initPeer(myId);
+    isHost = false;
+    roomCode = code;
+
+    // 호스트에 데이터 연결
+    const conn = peer.connect(hostId, { reliable: true, serialization: 'json' });
+
+    conn.on('open', () => {
+      connections[hostId] = conn;
+      G('dot-p2p').className = 'dot on';
+      G('lbl-p2p').textContent = 'JOINED';
+      updateMemberUI();
+      // 음성 연결
+      callPeer(hostId);
+    });
+
+    conn.on('data', data => handleDataMsg(hostId, data));
+    conn.on('close', () => { delete connections[hostId]; removeRemoteAudio(hostId); updateMemberUI(); });
+
+    // 5초 내 연결 안되면 실패
+    setTimeout(() => {
+      if(!connections[hostId]) {
+        G('dot-p2p').className = 'dot';
+        G('lbl-p2p').textContent = 'FAIL';
+        alert('방을 찾을 수 없습니다.\n코드를 확인하거나 방장이 개설했는지 확인해주세요.');
+      }
+    }, 5000);
+
+  } catch(e) {
+    G('dot-p2p').className = 'dot';
+    G('lbl-p2p').textContent = 'ERROR';
+    alert('접속 실패: ' + e.message);
+  } finally {
+    G('btn-join').disabled = false;
+    G('btn-join').textContent = '접속';
+  }
+});
+
+function startCodeTimer(sec) {
+  clearInterval(codeInterval);
+  updateCodeTimer(sec);
+  codeInterval = setInterval(() => {
+    sec--;
+    if(sec <= 0) { clearInterval(codeInterval); G('ctimer').textContent = '코드 만료'; return; }
+    updateCodeTimer(sec);
+  }, 1000);
+}
+function updateCodeTimer(sec) {
+  const m = Math.floor(sec/60), s = sec % 60;
+  G('ctimer').innerHTML = `유효: <span>${pad(m)}:${pad(s)}</span>`;
+}
+
+/* ══════════════════════════════════════════
+   마이크 & 고급 노이즈 필터
+   ─────────────────────────────────────────
+   필터 체인:
+   1. HPF 80Hz   → 저주파 바람/진동 차단
+   2. HPF 150Hz  → 헬멧 내부 저주파 공명 추가 차단
+   3. LPF 8kHz   → 고주파 바람/마찰음 차단
+   4. Notch 200Hz → 엔진 저주파 공명 제거
+   5. DynamicCompressor → 음성 레벨 안정화
+   6. GainNode   → 마이크 볼륨
+   7. ScriptProcessor → 노이즈 게이트 (무음 구간 완전 차단)
+══════════════════════════════════════════ */
+let audioCtx = null, micSource = null, processedStream = null;
+let micGainNode = null, noiseGateNode = null;
+let voxMuteGain = null; // VOX 제어용 게인
+
+async function getMic() {
+  if(localStream) return localStream;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: false, // 수동 제어
+        channelCount: 1,
+        sampleRate: 48000
+      }
+    });
+    localStream = stream;
+    setupAudioProcessing(stream);
+    startVoxEngine(stream);
+    return stream;
+  } catch(e) {
+    alert('마이크 접근 권한이 필요합니다');
+    return null;
+  }
+}
+
+function setupAudioProcessing(stream) {
+  audioCtx = new (window.AudioContext||window.webkitAudioContext)({ sampleRate: 48000 });
+  micSource = audioCtx.createMediaStreamSource(stream);
+
+  // ── 필터 노드 생성 ──
+  const hpf1 = audioCtx.createBiquadFilter();
+  hpf1.type = 'highpass'; hpf1.frequency.value = 80; hpf1.Q.value = 0.7;
+
+  const hpf2 = audioCtx.createBiquadFilter();
+  hpf2.type = 'highpass'; hpf2.frequency.value = 150; hpf2.Q.value = 1.0;
+
+  const lpf = audioCtx.createBiquadFilter();
+  lpf.type = 'lowpass'; lpf.frequency.value = 8000; lpf.Q.value = 0.7;
+
+  // 엔진 공명 노치 필터 (200Hz 대역)
+  const notch = audioCtx.createBiquadFilter();
+  notch.type = 'notch'; notch.frequency.value = 200; notch.Q.value = 2.0;
+
+  // 다이나믹 컴프레서 - 음성 레벨 안정화
+  const comp = audioCtx.createDynamicsCompressor();
+  comp.threshold.value = -30;
+  comp.knee.value = 10;
+  comp.ratio.value = 4;
+  comp.attack.value = 0.005;
+  comp.release.value = 0.1;
+
+  // 마이크 게인
+  micGainNode = audioCtx.createGain();
+  micGainNode.gain.value = parseInt(G('s-mic').value) / 100;
+
+  // VOX 뮤트 게인 (VOX가 음성 감지하면 1, 아니면 0)
+  voxMuteGain = audioCtx.createGain();
+  voxMuteGain.gain.value = 1; // 기본값: 항상 열림 (VOX OFF 상태)
+
+  const dest = audioCtx.createMediaStreamDestination();
+
+  // ── 체인 연결 ──
+  if(G('s-noise').checked) {
+    micSource
+      .connect(hpf1)
+      .connect(hpf2)
+      .connect(lpf)
+      .connect(notch)
+      .connect(comp)
+      .connect(micGainNode)
+      .connect(voxMuteGain)
+      .connect(dest);
+  } else {
+    micSource
+      .connect(micGainNode)
+      .connect(voxMuteGain)
+      .connect(dest);
+  }
+
+  processedStream = dest.stream;
+
+  // 마이크 볼륨 슬라이더 실시간 반영
+  G('s-mic').addEventListener('input', () => {
+    if(micGainNode) micGainNode.gain.value = parseInt(G('s-mic').value) / 100;
+  });
+}
+
+/* ══════════════════════════════════════════
+   VOX 엔진
+   ─────────────────────────────────────────
+   - AnalyserNode로 음성 에너지 측정
+   - 음성 대역(300~3400Hz) 에너지만 판단
+   - 임계값 초과 → TX ON (voxMuteGain = 1)
+   - 임계값 미만 → 300ms 홀드 후 TX OFF
+   - TX ON/OFF 시 부드러운 페이드 (클릭음 방지)
+══════════════════════════════════════════ */
+let voxAnalyser = null, voxAnimFrame = null;
+let voxTxActive = false, voxHoldTO = null;
+const VOX_HOLD_MS = 300; // TX 유지 시간 (말 끊긴 후)
+
+function startVoxEngine(stream) {
+  const ctx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+  const src = ctx.createMediaStreamSource(stream);
+  voxAnalyser = ctx.createAnalyser();
+  voxAnalyser.fftSize = 1024;
+  voxAnalyser.smoothingTimeConstant = 0.5;
+  src.connect(voxAnalyser);
+  animVox();
+}
+
+function animVox() {
+  const segs = G('voxm').querySelectorAll('.vs');
+  if(!voxAnalyser) { voxAnimFrame = requestAnimationFrame(animVox); return; }
+
+  const freqData = new Uint8Array(voxAnalyser.frequencyBinCount);
+  voxAnalyser.getByteFrequencyData(freqData);
+
+  // 음성 대역 에너지 계산 (300~3400Hz)
+  const sampleRate = audioCtx ? audioCtx.sampleRate : 48000;
+  const binHz = sampleRate / voxAnalyser.fftSize;
+  const voiceStart = Math.floor(300 / binHz);
+  const voiceEnd   = Math.floor(3400 / binHz);
+  let voiceEnergy = 0;
+  for(let i = voiceStart; i <= voiceEnd; i++) voiceEnergy += freqData[i];
+  voiceEnergy /= (voiceEnd - voiceStart);
+
+  // VOX 임계값 (슬라이더 0~100 → 에너지 20~120)
+  const sensitivity = parseInt(G('s-vox').value);
+  const threshold = 120 - sensitivity; // 감도 높을수록 임계값 낮음
+
+  const shouldTx = G('s-vox-on').checked && voiceEnergy > threshold;
+
+  // TX 상태 전환
+  if(shouldTx && !voxTxActive) {
+    voxTxActive = true;
+    clearTimeout(voxHoldTO);
+    setVoxTx(true);
+  } else if(!shouldTx && voxTxActive) {
+    clearTimeout(voxHoldTO);
+    voxHoldTO = setTimeout(() => { voxTxActive = false; setVoxTx(false); }, VOX_HOLD_MS);
+  }
+
+  // VOX 미터 UI 업데이트
+  if(segs.length) {
+    segs.forEach((s, i) => {
+      const v = freqData[Math.floor(i * freqData.length / segs.length)];
+      s.style.height = (v / 255 * 100) + '%';
+      s.classList.toggle('on', v > threshold * 0.8);
+    });
+  }
+
+  G('vst').textContent = voxTxActive ? 'TRANSMITTING' : (G('s-vox-on').checked ? '대기 중' : 'VOX OFF');
+  G('vst').className = voxTxActive ? 'vstxt tx' : 'vstxt';
+  G('txb').classList.toggle('show', voxTxActive);
+
+  voxAnimFrame = requestAnimationFrame(animVox);
+}
+
+function setVoxTx(on) {
+  if(!voxMuteGain) return;
+  if(G('s-vox-on').checked) {
+    // 부드러운 페이드 (클릭음 방지)
+    const now = audioCtx.currentTime;
+    voxMuteGain.gain.cancelScheduledValues(now);
+    voxMuteGain.gain.setValueAtTime(voxMuteGain.gain.value, now);
+    voxMuteGain.gain.linearRampToValueAtTime(on ? 1 : 0, now + 0.02);
+  } else {
+    // VOX OFF → 항상 열림
+    if(voxMuteGain) voxMuteGain.gain.value = 1;
+  }
+}
+
+// VOX ON/OFF 토글 시 즉시 반영
+G('s-vox-on').addEventListener('change', () => {
+  if(!voxMuteGain) return;
+  if(!G('s-vox-on').checked) {
+    voxMuteGain.gain.value = 1;
+    voxTxActive = false;
+  }
+});
+
+// VOX 세그먼트 초기화
+(()=>{
+  const m = G('voxm');
+  for(let i=0;i<20;i++){
+    const s = document.createElement('div');
+    s.className = 'vs'; s.style.height = '15%';
+    m.appendChild(s);
+  }
+})();
+
+/* ══════════════════════════════════════════
+   마이크 테스트
+══════════════════════════════════════════ */
+let micTestTO = null, micTestChunks = [], micTestRecorder = null;
+
+G('btn-mic-test').addEventListener('click', startMicTest);
+async function startMicTest() {
+  const stream = await getMic();
+  if(!stream) return;
+  G('ov-mic').classList.add('show');
+  G('mic-timer').textContent = '3';
+  G('mic-st').textContent = '🎙 말씀하세요...';
+  micTestChunks = [];
+  micTestRecorder = new MediaRecorder(stream);
+  micTestRecorder.ondataavailable = e => micTestChunks.push(e.data);
+  micTestRecorder.onstop = () => {
+    const blob = new Blob(micTestChunks,{type:'audio/webm'});
+    const url = URL.createObjectURL(blob);
+    const a = new Audio(url);
+    G('mic-st').textContent = '▶ 재생 중...';
+    G('mic-timer').textContent = '✓';
+    a.play().then(()=>a.onended=()=>{ G('ov-mic').classList.remove('show'); URL.revokeObjectURL(url); });
+  };
+  micTestRecorder.start();
+  let n=3;
+  micTestTO = setInterval(()=>{
+    n--; G('mic-timer').textContent=n;
+    if(n<=0){ clearInterval(micTestTO); micTestRecorder.stop(); }
+  },1000);
+}
+function cancelMicTest() {
+  clearInterval(micTestTO);
+  if(micTestRecorder && micTestRecorder.state!=='inactive') micTestRecorder.stop();
+  G('ov-mic').classList.remove('show');
+}
+
+/* ══════════════════════════════════════════
+   MP3 플레이어 + 재생목록 관리
+   - 여러 재생목록 생성/삭제/선택
+   - 재생목록별 파일 묶음 관리
+   - 재생목록 메타는 localStorage, 파일은 세션 메모리
+══════════════════════════════════════════ */
+let mp3Audio = new Audio(), mp3Playing = false;
+let mp3Idx = 0;                    // 현재 곡 인덱스
+let currentPlIdx = -1;             // 현재 선택된 재생목록 인덱스
+let playlists = [];                // [{name, files:[File]}] - 세션 메모리
+let plMeta = [];                   // [{name, count}] - localStorage 저장
+
+function loadPlMeta() {
+  plMeta = JSON.parse(localStorage.getItem('rc-plmeta') || '[]');
+  // 세션 파일은 없으므로 구조만 복원
+  playlists = plMeta.map(m => ({ name: m.name, files: [] }));
+}
+function savePlMeta() {
+  plMeta = playlists.map(p => ({ name: p.name, count: p.files.length }));
+  localStorage.setItem('rc-plmeta', JSON.stringify(plMeta));
+}
+
+/* ── 재생목록 패널 렌더 ── */
+function renderPlPanel() {
+  const wrap = G('mp3-pl-wrap');
+  if(!wrap) return;
+  wrap.innerHTML = '';
+
+  // 재생목록 목록
+  playlists.forEach((pl, i) => {
+    const el = document.createElement('div');
+    el.className = 'pl-item' + (i === currentPlIdx ? ' on' : '');
+    el.innerHTML = `
+      <div class="pl-ico">🎵</div>
+      <div class="pl-info">
+        <div class="pl-name">${pl.name}</div>
+        <div class="pl-cnt">${pl.files.length}곡</div>
+      </div>
+      <div class="pl-acts">
+        <button class="pl-act" onclick="event.stopPropagation();addFilesToPl(${i})" title="파일 추가">+</button>
+        <button class="pl-act del" onclick="event.stopPropagation();deletePl(${i})" title="삭제">✕</button>
+      </div>`;
+    el.onclick = () => selectPl(i);
+    wrap.appendChild(el);
+  });
+
+  // 새 재생목록 만들기
+  const addEl = document.createElement('div');
+  addEl.className = 'pl-new-btn';
+  addEl.innerHTML = '＋ 새 재생목록';
+  addEl.onclick = createNewPl;
+  wrap.appendChild(addEl);
+}
+
+/* ── 새 재생목록 생성 ── */
+async function createNewPl() {
+  const name = prompt('재생목록 이름:', `재생목록 ${playlists.length + 1}`);
+  if(!name) return;
+  playlists.push({ name, files: [] });
+  savePlMeta();
+  renderPlPanel();
+}
+
+/* ── 재생목록 삭제 ── */
+async function deletePl(i) {
+  const ok = await confirm2('재생목록 삭제', `"${playlists[i].name}"을 삭제할까요?`, '삭제');
+  if(!ok) return;
+  playlists.splice(i, 1);
+  if(currentPlIdx >= playlists.length) currentPlIdx = playlists.length - 1;
+  savePlMeta();
+  renderPlPanel();
+  renderMp3List();
+}
+
+/* ── 파일 추가 ── */
+function addFilesToPl(i) {
+  currentPlIdx = i;
+  G('mp3-file').click();
+}
+
+/* ── 재생목록 선택 ── */
+function selectPl(i) {
+  currentPlIdx = i;
+  mp3Idx = 0;
+  renderPlPanel();
+  renderMp3List();
+  if(playlists[i].files.length > 0) {
+    loadMp3(0);
+    G('mp3-title').textContent = playlists[i].files[0].name.replace(/\.[^/.]+$/,'');
+    G('mp3-sub').textContent = `${playlists[i].name} · 1/${playlists[i].files.length}`;
+  } else {
+    G('mp3-title').textContent = '파일을 추가하세요';
+    G('mp3-sub').textContent = playlists[i].name;
+  }
+}
+
+/* ── 파일 선택 이벤트 ── */
+G('btn-mp3-open').addEventListener('click', () => {
+  if(currentPlIdx < 0) {
+    // 재생목록 없으면 자동 생성
+    playlists.push({ name: '기본 재생목록', files: [] });
+    currentPlIdx = 0;
+    savePlMeta();
+    renderPlPanel();
+  }
+  G('mp3-file').click();
+});
+
+G('mp3-file').addEventListener('change', e => {
+  const files = Array.from(e.target.files);
+  if(!files.length) return;
+  if(currentPlIdx < 0) {
+    playlists.push({ name: '기본 재생목록', files: [] });
+    currentPlIdx = 0;
+  }
+  playlists[currentPlIdx].files.push(...files);
+  savePlMeta();
+  renderPlPanel();
+  renderMp3List();
+  if(playlists[currentPlIdx].files.length === files.length) {
+    mp3Idx = 0; loadMp3(0);
+  }
+  G('mp3-file').value = '';
+});
+
+/* ── 플레이어 컨트롤 ── */
+G('mp3-play').addEventListener('click', () => { mp3Playing ? pauseMp3() : playMp3(); });
+G('mp3-prev').addEventListener('click', () => {
+  if(currentPlIdx < 0) return;
+  mp3Idx = Math.max(0, mp3Idx - 1);
+  loadMp3(mp3Idx); playMp3(); renderMp3List();
+});
+G('mp3-next').addEventListener('click', () => nextMp3());
+
+function loadMp3(idx) {
+  const pl = playlists[currentPlIdx];
+  if(!pl || !pl.files[idx]) return;
+  const url = URL.createObjectURL(pl.files[idx]);
+  mp3Audio.src = url;
+  mp3Audio.volume = parseInt(G('mp3-vol').value) / 100;
+  G('mp3-title').textContent = pl.files[idx].name.replace(/\.[^/.]+$/, '');
+  G('mp3-sub').textContent = `${pl.name} · ${idx+1}/${pl.files.length}`;
+  G('mp3-prog').style.width = '0%';
+  G('mp3-cur').textContent = '0:00';
+  G('mp3-dur').textContent = '--:--';
+  mp3Audio.onloadedmetadata = () => {
+    const d = mp3Audio.duration;
+    G('mp3-dur').textContent = `${pad(Math.floor(d/60))}:${pad(Math.floor(d%60))}`;
+  };
+  mp3Audio.ontimeupdate = () => {
+    const c = mp3Audio.currentTime, d = mp3Audio.duration || 1;
+    G('mp3-prog').style.width = (c/d*100) + '%';
+    G('mp3-cur').textContent = `${pad(Math.floor(c/60))}:${pad(Math.floor(c%60))}`;
+  };
+  mp3Audio.onended = () => nextMp3();
+}
+
+function playMp3() {
+  if(currentPlIdx < 0 || !playlists[currentPlIdx]?.files.length) return;
+  mp3Audio.play();
+  mp3Playing = true;
+  G('mp3-play').textContent = '⏸';
+  G('mp3-play').classList.add('playing');
+}
+function pauseMp3() {
+  mp3Audio.pause();
+  mp3Playing = false;
+  G('mp3-play').textContent = '▶';
+  G('mp3-play').classList.remove('playing');
+}
+function nextMp3() {
+  const pl = playlists[currentPlIdx];
+  if(!pl) return;
+  mp3Idx = (mp3Idx + 1) % pl.files.length;
+  loadMp3(mp3Idx); playMp3(); renderMp3List();
+}
+function setMp3Vol(v) { mp3Audio.volume = v / 100; }
+
+/* ── 현재 재생목록 트랙 렌더 ── */
+function renderMp3List() {
+  const list = G('mp3-list');
+  const pl = playlists[currentPlIdx];
+  if(!pl || !pl.files.length) {
+    list.innerHTML = '<div style="text-align:center;padding:13px;color:var(--txt3);font-size:12px;">파일을 추가하세요</div>';
+    return;
+  }
+  list.innerHTML = '';
+  pl.files.forEach((f, i) => {
+    const el = document.createElement('div');
+    el.className = 'pli' + (i === mp3Idx ? ' on' : '');
+    el.innerHTML = `
+      <div class="pln">${i === mp3Idx ? '▶' : i+1}</div>
+      <div class="pli-i"><div class="pli-t">${f.name.replace(/\.[^/.]+$/, '')}</div></div>
+      <div style="display:flex;align-items:center;gap:4px;">
+        <div class="pli-d" id="pli-dur-${i}">--:--</div>
+        <button style="background:none;border:none;color:var(--txt3);font-size:12px;cursor:pointer;padding:2px 4px;"
+          onclick="event.stopPropagation();removeMp3Track(${i})">✕</button>
+      </div>`;
+    el.onclick = () => { mp3Idx = i; loadMp3(i); playMp3(); renderMp3List(); };
+    list.appendChild(el);
+  });
+}
+
+/* ── 트랙 삭제 ── */
+function removeMp3Track(i) {
+  const pl = playlists[currentPlIdx];
+  if(!pl) return;
+  pl.files.splice(i, 1);
+  if(mp3Idx >= pl.files.length) mp3Idx = Math.max(0, pl.files.length - 1);
+  savePlMeta();
+  renderMp3List();
+}
+
+// 진행바 클릭
+G('mp3-progbar').addEventListener('click', e=>{
+  if(!mp3Audio.duration) return;
+  const r=e.currentTarget.getBoundingClientRect();
+  mp3Audio.currentTime=((e.clientX-r.left)/r.width)*mp3Audio.duration;
+});
+
+/* ══════════════════════════════════════════
+   YOUTUBE 재생목록
+══════════════════════════════════════════ */
+let ytList = JSON.parse(localStorage.getItem('rc-ytlist')||'[]');
+let ytPlayer = null, ytCurIdx = 0;
+
+function saveYtList(){ localStorage.setItem('rc-ytlist', JSON.stringify(ytList)); }
+
+function extractYtId(url){
+  const m=url.match(/(?:v=|youtu\.be\/|embed\/)([a-zA-Z0-9_-]{11})/);
+  return m?m[1]:null;
+}
+function extractPlId(url){
+  const m=url.match(/[?&]list=([a-zA-Z0-9_-]+)/);
+  return m?m[1]:null;
+}
+
+G('btn-yt-add').addEventListener('click',()=>{
+  const url=G('yt-url-inp').value.trim(); if(!url) return;
+  const vid=extractYtId(url), plid=extractPlId(url);
+  ytList.push({
+    url, vid:vid||'', plid:plid||'',
+    title: plid?`재생목록 (${plid.substring(0,8)}...)`:vid?`영상 (${vid})`:'알 수 없음',
+    type: plid?'playlist':'video'
+  });
+  G('yt-url-inp').value='';
+  saveYtList(); renderYtList();
+});
+
+function removeYtItem(i){ ytList.splice(i,1); saveYtList(); renderYtList(); }
+
+function renderYtList(){
+  const list=G('yt-list');
+  if(!ytList.length){
+    list.innerHTML='<div style="text-align:center;padding:13px;color:var(--txt3);font-size:12px;">URL을 추가하세요</div>';
+    return;
+  }
+  list.innerHTML='';
+  ytList.forEach((item,i)=>{
+    const el=document.createElement('div');
+    el.className='yti'+(i===ytCurIdx?' on':'');
+    const thumb=item.vid?`<img class="ytth" src="https://img.youtube.com/vi/${item.vid}/mqdefault.jpg" onerror="this.style.display='none'" alt=""/>`:
+      `<div class="ytth" style="display:flex;align-items:center;justify-content:center;font-size:16px;">📋</div>`;
+    el.innerHTML=`${thumb}
+      <div class="yti-i"><div class="yti-t">${item.title}</div><div class="yti-s">${item.type==='playlist'?'재생목록':'영상'}</div></div>
+      <button class="ytdel" onclick="event.stopPropagation();removeYtItem(${i})">✕</button>`;
+    el.onclick=()=>{ ytCurIdx=i; playYt(item); renderYtList(); };
+    list.appendChild(el);
+  });
+}
+
+function playYt(item){
+  const wrap=G('yt-pw'); wrap.innerHTML='';
+  const iframe=document.createElement('iframe');
+  iframe.width='100%'; iframe.height='100%';
+  iframe.frameBorder='0'; iframe.allowFullscreen=true;
+  iframe.allow='accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture';
+  let src='';
+  if(item.type==='playlist')
+    src=`https://www.youtube.com/embed/videoseries?list=${item.plid}&autoplay=1`;
+  else
+    src=`https://www.youtube.com/embed/${item.vid}?autoplay=1`;
+  iframe.src=src;
+  wrap.appendChild(iframe);
+}
+
+function setYtVol(v){
+  // YouTube IFrame API 볼륨 제어 (플레이어 초기화 후)
+  if(ytPlayer && ytPlayer.setVolume) ytPlayer.setVolume(parseInt(v));
+}
+
+renderYtList();
+
+/* ══════════════════════════════════════════
+   녹음 (주행 통합)
+══════════════════════════════════════════ */
+let recorder=null, recChunks=[], recBlob=null;
+
+async function startRecording(){
+  if(!localStream) await getMic();
+  if(!localStream) return;
+  recChunks=[];
+  recorder=new MediaRecorder(localStream);
+  recorder.ondataavailable=e=>recChunks.push(e.data);
+  recorder.onstop=()=>{ recBlob=new Blob(recChunks,{type:'audio/webm'}); };
+  recorder.start(1000);
+}
+function stopRecording(){
+  if(recorder && recorder.state!=='inactive') recorder.stop();
+}
+
+/* ══════════════════════════════════════════
+   GPX 생성
+══════════════════════════════════════════ */
+function buildGPX(points, name){
+  const trkpts=points.map(p=>
+    `    <trkpt lat="${p.lat.toFixed(7)}" lon="${p.lon.toFixed(7)}">
+      <ele>${p.ele.toFixed(1)}</ele>
+      <time>${p.time}</time>
+      <extensions><speed>${p.spd.toFixed(2)}</speed></extensions>
+    </trkpt>`).join('\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="RiderCom"
+  xmlns="http://www.topografix.com/GPX/1/1"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <metadata><name>${name}</name><time>${new Date().toISOString()}</time></metadata>
+  <trk>
+    <name>${name}</name>
+    <trkseg>
+${trkpts}
+    </trkseg>
+  </trk>
+</gpx>`;
+}
+
+/* ══════════════════════════════════════════
+   주행 기록 저장
+   - Android: File System Access API → 지정 폴더에 직접 저장
+   - iOS / 미지원: 파일 다운로드 방식
+══════════════════════════════════════════ */
+let saveFolder = null; // FileSystemDirectoryHandle (Android)
+const isFSA = 'showDirectoryPicker' in window; // File System Access 지원 여부
+
+/* ── 저장 폴더 선택 (Android) ── */
+async function selectSaveFolder() {
+  if(!isFSA) { alert('이 기기는 폴더 지정 저장을 지원하지 않습니다.\n파일 다운로드 방식으로 저장됩니다.'); return; }
+  try {
+    saveFolder = await window.showDirectoryPicker({ mode:'readwrite' });
+    G('save-folder-path').textContent = saveFolder.name;
+    localStorage.setItem('rc-has-folder', '1');
+    saveSetting('s-has-folder', '1');
+  } catch(e) { if(e.name !== 'AbortError') console.warn(e); }
+}
+
+/* ── 파일을 폴더에 저장 or 다운로드 ── */
+async function saveFileAuto(filename, content, mimeType) {
+  if(saveFolder) {
+    try {
+      const fh = await saveFolder.getFileHandle(filename, { create:true });
+      const writable = await fh.createWritable();
+      await writable.write(content);
+      await writable.close();
+      return true;
+    } catch(e) { console.warn('폴더 저장 실패, 다운로드로 전환:', e); }
+  }
+  // 다운로드 fallback
+  const blob = content instanceof Blob ? content : new Blob([content], {type: mimeType});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  return false;
+}
+
+/* ── 주행 종료 시 저장 ── */
+async function saveLog() {
+  const logs = JSON.parse(localStorage.getItem('rc-logs') || '[]');
+  const ts = driveStartTime.toLocaleDateString('ko-KR').replace(/\. /g,'-').replace('.','');
+  const name = `${ts} 주행`;
+  const gpxStr = gpxPoints.length ? buildGPX(gpxPoints, name) : null;
+  const txtStr = buildTxt(name);
+
+  // localStorage에 메타 저장
+  const logEntry = {
+    id: Date.now(), name,
+    dist: totalDist.toFixed(1),
+    maxSpd: maxSpeed.toFixed(0),
+    avgSpd: speedSamples.length ? (speedSamples.reduce((a,b)=>a+b,0)/speedSamples.length).toFixed(0) : '0',
+    rideSec, restSec,
+    startTime: driveStartTime.toISOString(),
+    endTime: (driveEndTime||new Date()).toISOString(),
+    weather: weatherData ? {temp:weatherData.main.temp, desc:weatherData.weather[0].description} : null,
+    espTemp: G('sv-temp').textContent,
+    hasGpx: !!gpxStr,
+    hasRec: !!recBlob,
+    txt: txtStr,
+    gpx: gpxStr,
+  };
+  logs.unshift(logEntry);
+  localStorage.setItem('rc-logs', JSON.stringify(logs.slice(0, 50)));
+
+  // 파일 저장
+  const safeTs = driveStartTime.toISOString().substring(0,16).replace(/[T:]/g,'-');
+  if(gpxStr) await saveFileAuto(`RiderCom_${safeTs}.gpx`, gpxStr, 'application/gpx+xml');
+  await saveFileAuto(`RiderCom_${safeTs}.txt`, txtStr, 'text/plain;charset=utf-8');
+  if(recBlob) await saveFileAuto(`RiderCom_${safeTs}_voice.webm`, recBlob, 'audio/webm');
+
+  renderLogs();
+}
+
+function buildTxt(name){
+  const s=driveStartTime, e=driveEndTime||new Date();
+  const w=weatherData;
+  return `═══════════════════════════════
+  RiderCom 주행 기록
+═══════════════════════════════
+이름        : ${name}
+시작        : ${s.toLocaleString('ko-KR')}
+종료        : ${e.toLocaleString('ko-KR')}
+─────────────────────────────
+날씨        : ${w?w.weather[0].description:'--'}
+기온        : ${w?w.main.temp.toFixed(1)+'°C':'--'}
+외부온도    : ${G('sv-temp').textContent}°C
+─────────────────────────────
+총 거리     : ${totalDist.toFixed(1)} km
+최고 속도   : ${maxSpeed.toFixed(0)} km/h
+평균 속도   : ${speedSamples.length?(speedSamples.reduce((a,b)=>a+b,0)/speedSamples.length).toFixed(0):'0'} km/h
+실제 주행   : ${fmtTime(rideSec)}
+휴식 시간   : ${fmtTime(restSec)}
+전체 시간   : ${fmtHMS(driveSec)}
+═══════════════════════════════
+  Generated by RiderCom
+═══════════════════════════════`;
+}
+
+function renderLogs(){
+  const logs=JSON.parse(localStorage.getItem('rc-logs')||'[]');
+  const list=G('llist');
+  list.innerHTML='';
+  G('lempty').style.display=logs.length?'none':'block';
+  logs.forEach(log=>{
+    const el=document.createElement('div');
+    el.className='litem';
+    el.innerHTML=`
+      <div class="lico">🏍</div>
+      <div class="linf">
+        <div class="lname">${log.name}</div>
+        <div class="lmeta">${log.dist}km · 최고 ${log.maxSpd}km/h · ${fmtTime(log.rideSec)} · ${log.weather?log.weather.desc+'·'+log.weather.temp.toFixed(0)+'°C':'--'}</div>
+      </div>
+      <div class="lacts">
+        <button class="lact" title="주행 정보" onclick="showDetail(${log.id})">📄</button>
+        ${log.gpx?`<button class="lact" title="GPX 다운로드" onclick="downloadGPX(${log.id})">🗺</button>`:''}
+        ${log.hasRec?`<button class="lact" title="녹음 파일">🎤</button>`:''}
+        <button class="lact del" title="삭제" onclick="deleteLog(${log.id})">🗑</button>
+      </div>`;
+    list.appendChild(el);
+  });
+}
+
+function showDetail(id){
+  const logs=JSON.parse(localStorage.getItem('rc-logs')||'[]');
+  const log=logs.find(l=>l.id===id); if(!log) return;
+  const box=G('detail-content');
+  box.innerHTML=`<div class="detail-title">📋 주행 상세 정보</div>
+    ${[
+      ['이름',log.name],
+      ['시작',new Date(log.startTime).toLocaleString('ko-KR')],
+      ['종료',new Date(log.endTime).toLocaleString('ko-KR')],
+      ['날씨',log.weather?log.weather.desc:'--'],
+      ['기온',log.weather?log.weather.temp.toFixed(1)+'°C':'--'],
+      ['외부온도',log.espTemp+'°C'],
+      ['총 거리',log.dist+' km'],
+      ['최고 속도',log.maxSpd+' km/h'],
+      ['평균 속도',log.avgSpd+' km/h'],
+      ['주행 시간',fmtTime(log.rideSec)],
+      ['휴식 시간',fmtTime(log.restSec)],
+    ].map(([k,v])=>`<div class="detail-row"><span class="detail-k">${k}</span><span class="detail-v">${v}</span></div>`).join('')}
+    <div style="margin-top:12px;display:flex;gap:6px;">
+      <button class="btn btn-o btn-sm" style="flex:1;" onclick="downloadTxt(${log.id})">📄 TXT</button>
+      ${log.gpx?`<button class="btn btn-o btn-sm" style="flex:1;" onclick="downloadGPX(${log.id})">🗺 GPX</button>`:''}
+    </div>`;
+  G('ov-detail').classList.add('show');
+}
+
+function downloadGPX(id){
+  const logs=JSON.parse(localStorage.getItem('rc-logs')||'[]');
+  const log=logs.find(l=>l.id===id); if(!log||!log.gpx) return;
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([log.gpx],{type:'application/gpx+xml'}));
+  a.download=log.name+'.gpx'; a.click();
+}
+
+function downloadTxt(id){
+  const logs=JSON.parse(localStorage.getItem('rc-logs')||'[]');
+  const log=logs.find(l=>l.id===id); if(!log) return;
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([log.txt],{type:'text/plain;charset=utf-8'}));
+  a.download=log.name+'.txt'; a.click();
+}
+
+async function deleteLog(id){
+  const ok=await confirm2('기록 삭제','이 주행 기록을 삭제할까요?','삭제');
+  if(!ok) return;
+  let logs=JSON.parse(localStorage.getItem('rc-logs')||'[]');
+  logs=logs.filter(l=>l.id!==id);
+  localStorage.setItem('rc-logs',JSON.stringify(logs));
+  renderLogs();
+}
+
+G('btn-clearall').addEventListener('click', async ()=>{
+  const ok=await confirm2('전체 삭제','모든 주행 기록을 삭제할까요?','전체 삭제');
+  if(!ok) return;
+  localStorage.removeItem('rc-logs');
+  renderLogs();
+});
+
+/* ══════════════════════════════════════════
+   ESP32 WebSocket
+══════════════════════════════════════════ */
+let espWs = null;
+
+function toggleEsp(on){
+  saveSetting('s-esp', on);
+  if(on) connectEsp(); else disconnectEsp();
+}
+
+G('btn-esp-conn').addEventListener('click',()=>connectEsp());
+
+function connectEsp(){
+  const addr=G('s-espaddr').value.trim();
+  try{
+    espWs=new WebSocket(addr);
+    espWs.onopen=()=>{
+      G('dot-esp').className='dot on';
+      G('esp-st').textContent='연결됨: '+addr;
+      // 주기적으로 GPS 속도 전송
+      setInterval(()=>{
+        if(espWs.readyState===WebSocket.OPEN)
+          espWs.send(JSON.stringify({type:'SPEED',value:parseFloat(G('spn').textContent)||0}));
+      },1000);
+    };
+    espWs.onmessage=e=>{
+      try{
+        const d=JSON.parse(e.data);
+        if(d.type==='TEMP'){
+          G('sv-temp').textContent=d.value.toFixed(1);
+          G('w-ext').textContent=d.value.toFixed(1)+' °C';
+        }
+      }catch(err){}
+    };
+    espWs.onerror=()=>{ G('esp-st').textContent='연결 실패'; G('dot-esp').className='dot'; };
+    espWs.onclose=()=>{ G('esp-st').textContent='연결 끊김'; G('dot-esp').className='dot'; };
+  }catch(e){ G('esp-st').textContent='주소 오류'; }
+}
+
+function disconnectEsp(){
+  if(espWs){ espWs.close(); espWs=null; }
+  G('dot-esp').className='dot';
+  G('esp-st').textContent='연결 안됨';
+}
+
+/* ══════════════════════════════════════════
+   WAKE LOCK (화면 꺼짐 방지 - 주행 중)
+══════════════════════════════════════════ */
+let wakeLock=null;
+async function requestWakeLock(){
+  try{ if('wakeLock' in navigator){ wakeLock=await navigator.wakeLock.request('screen'); } }catch(e){}
+}
+async function releaseWakeLock(){
+  try{ if(wakeLock){ await wakeLock.release(); wakeLock=null; } }catch(e){}
+}
+
+/* ══════════════════════════════════════════
+   INIT
+══════════════════════════════════════════ */
+loadSettings();
+updateChips();
+renderLogs();
+loadPlMeta();
+renderPlPanel();
+
+// FSA 지원 여부 표시
+if(G('fsa-support')) {
+  G('fsa-support').textContent = isFSA
+    ? '✅ 이 기기는 폴더 지정 저장을 지원합니다'
+    : '⚠️ 이 기기는 다운로드 방식으로 저장됩니다 (iOS)';
+}
+
+// 재생목록 선택 시 트랙 카드 표시 연동
+const origSelectPl = selectPl;
+// selectPl 내에서 트랙 카드 표시
+function selectPl(i) {
+  currentPlIdx = i;
+  mp3Idx = 0;
+  G('mp3-track-card').style.display = 'block';
+  G('mp3-track-title').textContent = playlists[i].name + ' 트랙';
+  renderPlPanel();
+  renderMp3List();
+  if(playlists[i].files.length > 0) {
+    loadMp3(0);
+    G('mp3-title').textContent = playlists[i].files[0].name.replace(/\.[^/.]+$/,'');
+    G('mp3-sub').textContent = `${playlists[i].name} · 1/${playlists[i].files.length}`;
+  } else {
+    G('mp3-title').textContent = '파일을 추가하세요';
+    G('mp3-sub').textContent = playlists[i].name;
+  }
+}
+
+// ESP32 자동 연결
+if(localStorage.getItem('rc-s-esp')==='true') connectEsp();
+</script>
+</body>
+</html>

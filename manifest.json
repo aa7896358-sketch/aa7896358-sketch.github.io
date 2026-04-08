@@ -1,0 +1,16 @@
+{
+  "name": "RiderCom",
+  "short_name": "RiderCom",
+  "description": "라이더 팀 인터컴 & 주행 기록 앱",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#080c14",
+  "theme_color": "#080c14",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "categories": ["navigation", "utilities"],
+  "lang": "ko"
+}
