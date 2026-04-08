@@ -776,6 +776,41 @@
   </nav>
 </div>
 
+<!-- PWA 설치 배너 -->
+<div id="pwa-banner" style="display:none;position:fixed;bottom:70px;left:50%;transform:translateX(-50%);
+  width:calc(100% - 24px);max-width:456px;z-index:150;
+  background:var(--bg2);border:1px solid var(--amber);border-radius:var(--r);
+  padding:12px 14px;display:none;align-items:center;gap:10px;box-shadow:0 4px 20px rgba(0,0,0,0.5);">
+  <img src="icons/icon-192.png" style="width:36px;height:36px;border-radius:8px;flex-shrink:0;" alt=""/>
+  <div style="flex:1;">
+    <div style="font-family:var(--HUD);font-size:11px;font-weight:700;letter-spacing:1px;color:var(--amber);">앱으로 설치하기</div>
+    <div style="font-size:11px;color:var(--txt3);margin-top:2px;">홈 화면에 추가하면 앱처럼 실행됩니다</div>
+  </div>
+  <button id="pwa-install-btn" style="background:var(--amber);color:var(--bg);border:none;border-radius:var(--rs);
+    padding:7px 14px;font-family:var(--HUD);font-size:10px;font-weight:700;letter-spacing:1px;cursor:pointer;flex-shrink:0;">
+    설치
+  </button>
+  <button id="pwa-dismiss-btn" style="background:none;border:none;color:var(--txt3);font-size:16px;cursor:pointer;flex-shrink:0;padding:2px 4px;">
+    ✕
+  </button>
+</div>
+
+<!-- iOS 설치 안내 배너 -->
+<div id="ios-banner" style="display:none;position:fixed;bottom:70px;left:50%;transform:translateX(-50%);
+  width:calc(100% - 24px);max-width:456px;z-index:150;
+  background:var(--bg2);border:1px solid var(--cyan);border-radius:var(--r);
+  padding:12px 14px;box-shadow:0 4px 20px rgba(0,0,0,0.5);">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+    <div style="font-family:var(--HUD);font-size:11px;font-weight:700;letter-spacing:1px;color:var(--cyan);">앱으로 설치 (iOS)</div>
+    <button id="ios-dismiss-btn" style="background:none;border:none;color:var(--txt3);font-size:16px;cursor:pointer;">✕</button>
+  </div>
+  <div style="font-size:12px;color:var(--txt2);line-height:1.8;">
+    1. 하단 <strong style="color:var(--cyan);">공유 버튼 (□↑)</strong> 터치<br>
+    2. <strong style="color:var(--cyan);">홈 화면에 추가</strong> 선택<br>
+    3. 추가 버튼 터치
+  </div>
+</div>
+
 <!-- 마이크 테스트 오버레이 -->
 <div class="overlay" id="ov-mic">
   <div class="ov-title">마이크 테스트</div>
@@ -961,7 +996,9 @@ G('btn-drive').addEventListener('click', async () => {
     driveInterval = setInterval(tickDrive, 1000);
     startGPS();
     fetchWeather();
-    if(G('s-rec').checked) startRecording();
+    // 녹음은 방 개설/접속 시점에 이미 시작됨
+    // 주행 중이 아닐 때 방에 없으면 여기서 시작
+    if(!isRecording()) startRecording();
   } else {
     const ok = await confirm2('주행 종료','주행을 종료하고 기록을 저장할까요?','저장');
     if(!ok) return;
@@ -1355,6 +1392,8 @@ G('btn-create').addEventListener('click', async () => {
     startCodeTimer(1800);
     G('dot-p2p').className = 'dot on';
     G('lbl-p2p').textContent = 'HOST';
+    // 방 개설 시점부터 녹음 시작
+    startRecording();
   } catch(e) {
     alert('방 개설에 실패했습니다. 다시 시도해주세요.');
   } finally {
@@ -1392,6 +1431,8 @@ G('btn-join').addEventListener('click', async () => {
       G('dot-p2p').className = 'dot on';
       G('lbl-p2p').textContent = 'JOINED';
       updateMemberUI();
+      // 접속 시점부터 녹음 시작
+      startRecording();
       // 음성 연결
       callPeer(hostId);
     });
@@ -1966,21 +2007,54 @@ function setYtVol(v){
 renderYtList();
 
 /* ══════════════════════════════════════════
-   녹음 (주행 통합)
+   녹음 - 방 개설/접속 시점부터 시작
+   ─────────────────────────────────────────
+   - s-rec ON: 방 개설/접속 즉시 녹음 시작
+   - 주행 종료 시 저장 (주행 기록과 통합)
+   - 앱 종료 시에도 자동 저장
 ══════════════════════════════════════════ */
-let recorder=null, recChunks=[], recBlob=null;
+let recorder = null, recChunks = [], recBlob = null;
+let recStartTime = null;
 
-async function startRecording(){
+async function startRecording() {
+  if(!G('s-rec').checked) return;
+  if(recorder && recorder.state !== 'inactive') return; // 이미 녹음 중
   if(!localStream) await getMic();
   if(!localStream) return;
-  recChunks=[];
-  recorder=new MediaRecorder(localStream);
-  recorder.ondataavailable=e=>recChunks.push(e.data);
-  recorder.onstop=()=>{ recBlob=new Blob(recChunks,{type:'audio/webm'}); };
-  recorder.start(1000);
+  recChunks = [];
+  recBlob = null;
+  recStartTime = new Date();
+  try {
+    recorder = new MediaRecorder(localStream, { mimeType: getSupportedMimeType() });
+    recorder.ondataavailable = e => { if(e.data.size > 0) recChunks.push(e.data); };
+    recorder.onstop = () => {
+      recBlob = new Blob(recChunks, { type: recorder.mimeType });
+    };
+    recorder.start(1000);
+    console.log('[REC] 녹음 시작:', recStartTime.toLocaleString());
+  } catch(e) {
+    console.warn('[REC] 녹음 실패:', e);
+  }
 }
-function stopRecording(){
-  if(recorder && recorder.state!=='inactive') recorder.stop();
+
+function stopRecording() {
+  return new Promise(resolve => {
+    if(!recorder || recorder.state === 'inactive') { resolve(); return; }
+    recorder.onstop = () => {
+      recBlob = new Blob(recChunks, { type: recorder.mimeType });
+      resolve();
+    };
+    recorder.stop();
+  });
+}
+
+function getSupportedMimeType() {
+  const types = ['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/mp4'];
+  return types.find(t => MediaRecorder.isTypeSupported(t)) || '';
+}
+
+function isRecording() {
+  return recorder && recorder.state === 'recording';
 }
 
 /* ══════════════════════════════════════════
@@ -2283,6 +2357,134 @@ function selectPl(i) {
 
 // ESP32 자동 연결
 if(localStorage.getItem('rc-s-esp')==='true') connectEsp();
+
+/* ══════════════════════════════════════════
+   PWA 설치 프롬프트
+══════════════════════════════════════════ */
+let deferredInstallPrompt = null;
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+  || window.navigator.standalone === true;
+
+// Android: beforeinstallprompt 이벤트 캐치
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  // 이미 설치됐거나 배너 닫은 적 있으면 표시 안 함
+  if(!isStandalone && !localStorage.getItem('rc-pwa-dismissed')) {
+    setTimeout(() => {
+      const banner = G('pwa-banner');
+      if(banner) banner.style.display = 'flex';
+    }, 2000);
+  }
+});
+
+G('pwa-install-btn') && G('pwa-install-btn').addEventListener('click', async () => {
+  if(!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  const { outcome } = await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;
+  G('pwa-banner').style.display = 'none';
+  if(outcome === 'accepted') localStorage.setItem('rc-pwa-installed', '1');
+});
+
+G('pwa-dismiss-btn') && G('pwa-dismiss-btn').addEventListener('click', () => {
+  G('pwa-banner').style.display = 'none';
+  localStorage.setItem('rc-pwa-dismissed', '1');
+});
+
+// iOS: Safari에서 standalone 아닐 때 안내
+if(isIOS && !isStandalone && !localStorage.getItem('rc-ios-dismissed')) {
+  setTimeout(() => {
+    const b = G('ios-banner');
+    if(b) b.style.display = 'block';
+  }, 2000);
+}
+
+G('ios-dismiss-btn') && G('ios-dismiss-btn').addEventListener('click', () => {
+  G('ios-banner').style.display = 'none';
+  localStorage.setItem('rc-ios-dismissed', '1');
+});
+
+// 앱 설치 완료 감지
+window.addEventListener('appinstalled', () => {
+  G('pwa-banner') && (G('pwa-banner').style.display = 'none');
+  localStorage.setItem('rc-pwa-installed', '1');
+});
+
+/* ══════════════════════════════════════════
+   앱 종료 전 처리
+   - 주행 중이면 자동 저장
+   - 녹음 중이면 자동 저장
+   - 확인 다이얼로그 표시
+══════════════════════════════════════════ */
+// 브라우저 종료/탭 닫기 감지
+window.addEventListener('beforeunload', e => {
+  if(driving || isRecording()) {
+    // 브라우저 기본 확인 다이얼로그 (커스텀 불가)
+    e.preventDefault();
+    e.returnValue = '주행 중이거나 녹음 중입니다. 정말 닫으시겠습니까?';
+    return e.returnValue;
+  }
+});
+
+// 페이지 숨김(백그라운드/종료) 감지 - 자동 저장
+document.addEventListener('visibilitychange', async () => {
+  if(document.visibilityState === 'hidden') {
+    // 주행 중이면 현재까지 데이터 임시 저장 (localStorage)
+    if(driving) {
+      const snap = {
+        dist: totalDist.toFixed(1),
+        maxSpd: maxSpeed.toFixed(0),
+        rideSec, restSec, driveSec,
+        startTime: driveStartTime?.toISOString(),
+        savedAt: new Date().toISOString()
+      };
+      localStorage.setItem('rc-drive-snapshot', JSON.stringify(snap));
+    }
+    // 녹음 중이면 청크 저장 유지 (MediaRecorder는 백그라운드에서도 동작)
+  }
+});
+
+// 앱 재진입 시 미완료 주행 복구 안내
+window.addEventListener('pageshow', () => {
+  const snap = localStorage.getItem('rc-drive-snapshot');
+  if(snap && !driving) {
+    try {
+      const d = JSON.parse(snap);
+      const saved = new Date(d.savedAt);
+      const diff = (Date.now() - saved) / 1000 / 60; // 분
+      if(diff < 60) { // 1시간 이내면 복구 안내
+        setTimeout(async () => {
+          const ok = await confirm2(
+            '미완료 주행 발견',
+            `${new Date(d.startTime).toLocaleString('ko-KR')} 시작된 주행 기록이 있습니다.\n거리: ${d.dist}km · 시간: ${fmtTime(d.rideSec)}\n\n저장하시겠습니까?`,
+            '저장'
+          );
+          if(ok) {
+            // 스냅샷 데이터로 임시 로그 저장
+            const logs = JSON.parse(localStorage.getItem('rc-logs') || '[]');
+            logs.unshift({
+              id: Date.now(),
+              name: new Date(d.startTime).toLocaleDateString('ko-KR') + ' 주행 (복구)',
+              dist: d.dist, maxSpd: d.maxSpd, avgSpd: '0',
+              rideSec: d.rideSec, restSec: d.restSec,
+              startTime: d.startTime, endTime: d.savedAt,
+              weather: null, espTemp: '--',
+              hasGpx: false, hasRec: false,
+              txt: `복구된 주행 기록\n거리: ${d.dist}km\n주행: ${fmtTime(d.rideSec)}`
+            });
+            localStorage.setItem('rc-logs', JSON.stringify(logs.slice(0,50)));
+            renderLogs();
+          }
+          localStorage.removeItem('rc-drive-snapshot');
+        }, 500);
+      } else {
+        localStorage.removeItem('rc-drive-snapshot');
+      }
+    } catch(e) { localStorage.removeItem('rc-drive-snapshot'); }
+  }
+});
 </script>
 </body>
 </html>
