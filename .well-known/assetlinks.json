@@ -1,0 +1,10 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.aa7896358.ridercom",
+    "sha256_cert_fingerprints": [
+      "76:A1:5E:49:A8:71:E9:13:5C:D6:1F:23:CF:2A:6B:59:88:A6:9B:9A:8B:84:51:04:AA:1F:B6:5C:15:FA:8C:97"
+    ]
+  }
+}]
