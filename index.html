@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="RiderCom"/>
   <title>RiderCom</title>
   <link rel="manifest" href="manifest.json"/>
-  <link rel="apple-touch-icon" href="icons/icon-192.png"/>
+  <link rel="apple-touch-icon" href="icon-192.png"/>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Sans+KR:wght@300;400;500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
   <!-- PeerJS -->
@@ -395,7 +395,7 @@
       <div class="badge"><div class="dot" id="dot-p2p"></div><span id="lbl-p2p">OFFLINE</span></div>
       <div class="badge"><div class="dot" id="dot-esp"></div><span>ESP</span></div>
       <div style="font-family:var(--MONO);font-size:10px;color:var(--txt3);padding:3px 6px;
-        background:var(--bg3);border:1px solid var(--bd);border-radius:4px;">v1.00</div>
+        background:var(--bg3);border:1px solid var(--bd);border-radius:4px;">v1.01</div>
     </div>
   </header>
 
@@ -459,6 +459,20 @@
           <div class="achip on" id="ac-s2"><div class="aled"></div>SP·2</div>
           <div class="achip on" id="ac-s3"><div class="aled"></div>SP·3</div>
         </div>
+      </div>
+
+      <!-- 마이크 토글 -->
+      <div id="mic-toggle-wrap" style="margin-bottom:10px;">
+        <button id="btn-mic-toggle" onclick="toggleMic()"
+          style="width:100%;padding:16px;border-radius:var(--r);border:2px solid var(--green);
+          background:rgba(76,255,145,0.08);color:var(--green);
+          font-family:var(--HUD);font-size:15px;font-weight:700;letter-spacing:2px;
+          cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:12px;">
+          <span style="font-size:22px;">🎙</span>
+          <span id="mic-toggle-lbl">마이크 ON</span>
+          <span id="mic-toggle-dot" style="width:10px;height:10px;border-radius:50%;
+            background:var(--green);box-shadow:0 0 8px var(--green);flex-shrink:0;"></span>
+        </button>
       </div>
 
       <!-- 주행 시작 -->
@@ -797,7 +811,7 @@
   width:calc(100% - 24px);max-width:456px;z-index:150;
   background:var(--bg2);border:1px solid var(--amber);border-radius:var(--r);
   padding:12px 14px;display:none;align-items:center;gap:10px;box-shadow:0 4px 20px rgba(0,0,0,0.5);">
-  <img src="icons/icon-192.png" style="width:36px;height:36px;border-radius:8px;flex-shrink:0;" alt=""/>
+  <img src="icon-192.png" style="width:36px;height:36px;border-radius:8px;flex-shrink:0;" alt=""/>
   <div style="flex:1;">
     <div style="font-family:var(--HUD);font-size:11px;font-weight:700;letter-spacing:1px;color:var(--amber);">앱으로 설치하기</div>
     <div style="font-size:11px;color:var(--txt3);margin-top:2px;">홈 화면에 추가하면 앱처럼 실행됩니다</div>
@@ -1012,8 +1026,9 @@ G('btn-drive').addEventListener('click', async () => {
     driveInterval = setInterval(tickDrive, 1000);
     startGPS();
     fetchWeather();
+    requestWakeLock();
+    startSilentAudio();
     // 녹음은 방 개설/접속 시점에 이미 시작됨
-    // 주행 중이 아닐 때 방에 없으면 여기서 시작
     if(!isRecording()) startRecording();
   } else {
     const ok = await confirm2('주행 종료','주행을 종료하고 기록을 저장할까요?','저장');
@@ -1047,6 +1062,8 @@ function stopDrive() {
   [1,2,3].forEach(i=>G('sc'+i).classList.remove('passed'));
   G('ac-os').classList.remove('trig');
   setSpeed(0);
+  releaseWakeLock();
+  if(!Object.keys(callConns).length) stopSilentAudio();
   if(G('s-rec').checked) stopRecording();
   saveLog();
 }
@@ -1440,6 +1457,7 @@ G('btn-create').addEventListener('click', async () => {
     G('lbl-p2p').textContent = 'HOST';
     // 방 개설 시점부터 녹음 시작
     startRecording();
+    onP2PConnected();
   } catch(e) {
     alert('방 개설에 실패했습니다. 다시 시도해주세요.');
   } finally {
@@ -1479,6 +1497,7 @@ G('btn-join').addEventListener('click', async () => {
       updateMemberUI();
       // 접속 시점부터 녹음 시작
       startRecording();
+      onP2PConnected();
       // 음성 연결
       callPeer(hostId);
     });
@@ -2417,14 +2436,163 @@ function disconnectEsp(){
 }
 
 /* ══════════════════════════════════════════
-   WAKE LOCK (화면 꺼짐 방지 - 주행 중)
+   WAKE LOCK (화면 꺼짐 방지)
 ══════════════════════════════════════════ */
-let wakeLock=null;
-async function requestWakeLock(){
-  try{ if('wakeLock' in navigator){ wakeLock=await navigator.wakeLock.request('screen'); } }catch(e){}
+let wakeLock = null;
+async function requestWakeLock() {
+  try {
+    if('wakeLock' in navigator) {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => {
+        // 자동 해제됐을 때 재요청 (백그라운드 복귀 시)
+        if(driving) setTimeout(requestWakeLock, 1000);
+      });
+    }
+  } catch(e) {}
 }
-async function releaseWakeLock(){
-  try{ if(wakeLock){ await wakeLock.release(); wakeLock=null; } }catch(e){}
+async function releaseWakeLock() {
+  try { if(wakeLock){ await wakeLock.release(); wakeLock=null; } } catch(e) {}
+}
+
+/* ══════════════════════════════════════════
+   백그라운드 오디오 세션 유지
+   ─────────────────────────────────────────
+   문제: 백그라운드/창 전환 시
+     - AudioContext가 suspended 됨
+     - 모바일 OS가 오디오 세션 회수
+   해결:
+     1. 무음 오디오 루프 → OS 오디오 세션 유지
+     2. visibilitychange → AudioContext resume()
+     3. 페이지 포커스 복귀 시 P2P 스트림 재확인
+══════════════════════════════════════════ */
+let silentAudio = null;
+
+function startSilentAudio() {
+  // 이미 실행 중이면 skip
+  if(silentAudio && !silentAudio.paused) return;
+  // 무음 MP3 (44바이트 최소 유효 MP3)
+  const silentMp3 = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4LjI5LjEwMAAAAAAAAAAAAAAA//OEAAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAACAAABIADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV6urq6urq6urq6urq6urq6urq6urq6urq6v////////////////////////////////8AAAAATGF2YzU4LjU0AAAAAAAAAAAAAAAAJAAAAAAAAAAAASDs90hvAAAAAAAAAAAAAAAAAAAA//OEZAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAACcgCampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqa//////////////////////////////////////////////////////////////////8AAAA8TEFNRTMuMTAwBK8AAAAAAAAAABSAJAKAQgAAgAAAcmMTLPIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+  silentAudio = new Audio(silentMp3);
+  silentAudio.loop = true;
+  silentAudio.volume = 0.001; // 거의 무음
+  silentAudio.play().catch(() => {});
+}
+
+function stopSilentAudio() {
+  if(silentAudio) { silentAudio.pause(); silentAudio = null; }
+}
+
+// visibilitychange: 포그라운드 복귀 시 오디오 복구
+document.addEventListener('visibilitychange', async () => {
+  if(document.visibilityState === 'visible') {
+    // AudioContext 재개
+    if(audioCtx && audioCtx.state === 'suspended') {
+      try { await audioCtx.resume(); } catch(e) {}
+    }
+    // P2P 오디오 스트림 볼륨 재확인
+    Object.keys(callConns).forEach(pid => {
+      const el = document.getElementById('audio-' + pid);
+      if(el) {
+        el.volume = parseInt(G('s-rcv').value) / 100;
+        // 재생 멈췄으면 재시작
+        if(el.paused) el.play().catch(() => {});
+      }
+    });
+    // Wake Lock 재요청
+    if(driving) requestWakeLock();
+  } else {
+    // 백그라운드 진입 시 무음 오디오로 세션 유지
+    if(Object.keys(callConns).length > 0 || driving) {
+      startSilentAudio();
+    }
+    // 주행 스냅샷 저장
+    if(driving) {
+      localStorage.setItem('rc-drive-snapshot', JSON.stringify({
+        dist: totalDist.toFixed(1),
+        maxSpd: maxSpeed.toFixed(0),
+        rideSec, restSec, driveSec,
+        startTime: driveStartTime?.toISOString(),
+        savedAt: new Date().toISOString()
+      }));
+    }
+  }
+});
+
+// 페이지 포커스 복귀 (iOS Safari 대응)
+window.addEventListener('focus', async () => {
+  if(audioCtx && audioCtx.state === 'suspended') {
+    try { await audioCtx.resume(); } catch(e) {}
+  }
+});
+
+// 페이지 재활성화 (pagehide/pageshow - iOS)
+window.addEventListener('pageshow', e => {
+  if(e.persisted) {
+    // bfcache에서 복귀
+    setTimeout(async () => {
+      if(audioCtx && audioCtx.state === 'suspended') {
+        try { await audioCtx.resume(); } catch(e) {}
+      }
+      Object.keys(callConns).forEach(pid => {
+        const el = document.getElementById('audio-' + pid);
+        if(el && el.paused) el.play().catch(() => {});
+      });
+    }, 300);
+  }
+});
+
+/* ══════════════════════════════════════════
+   마이크 ON/OFF 토글
+══════════════════════════════════════════ */
+let micMuted = false;
+
+function toggleMic() {
+  micMuted = !micMuted;
+  const btn = G('btn-mic-toggle');
+  const lbl = G('mic-toggle-lbl');
+  const dot = G('mic-toggle-dot');
+
+  if(micMuted) {
+    // 마이크 뮤트: voxMuteGain을 0으로
+    if(voxMuteGain) {
+      const now = audioCtx?.currentTime || 0;
+      voxMuteGain.gain.cancelScheduledValues(now);
+      voxMuteGain.gain.setValueAtTime(voxMuteGain.gain.value, now);
+      voxMuteGain.gain.linearRampToValueAtTime(0, now + 0.05);
+    }
+    // localStream 트랙 직접 비활성화 (P2P 상대방에게도 적용)
+    if(localStream) localStream.getAudioTracks().forEach(t => t.enabled = false);
+
+    btn.style.borderColor = 'var(--red)';
+    btn.style.background = 'rgba(255,59,59,0.08)';
+    btn.style.color = 'var(--red)';
+    lbl.textContent = '마이크 OFF';
+    dot.style.background = 'var(--red)';
+    dot.style.boxShadow = '0 0 8px var(--red)';
+    dot.style.animation = 'blink 1s infinite';
+  } else {
+    // 마이크 활성화
+    if(localStream) localStream.getAudioTracks().forEach(t => t.enabled = true);
+    if(voxMuteGain && !G('s-vox-on').checked) {
+      const now = audioCtx?.currentTime || 0;
+      voxMuteGain.gain.cancelScheduledValues(now);
+      voxMuteGain.gain.setValueAtTime(0, now);
+      voxMuteGain.gain.linearRampToValueAtTime(1, now + 0.05);
+    }
+
+    btn.style.borderColor = 'var(--green)';
+    btn.style.background = 'rgba(76,255,145,0.08)';
+    btn.style.color = 'var(--green)';
+    lbl.textContent = '마이크 ON';
+    dot.style.background = 'var(--green)';
+    dot.style.boxShadow = '0 0 8px var(--green)';
+    dot.style.animation = '';
+  }
+}
+
+// P2P 연결 시 무음 오디오 시작
+function onP2PConnected() {
+  startSilentAudio();
 }
 
 /* ══════════════════════════════════════════
