@@ -395,7 +395,7 @@
       <div class="badge"><div class="dot" id="dot-p2p"></div><span id="lbl-p2p">OFFLINE</span></div>
       <div class="badge"><div class="dot" id="dot-esp"></div><span>ESP</span></div>
       <div style="font-family:var(--MONO);font-size:10px;color:var(--txt3);padding:3px 6px;
-        background:var(--bg3);border:1px solid var(--bd);border-radius:4px;">v1.01</div>
+        background:var(--bg3);border:1px solid var(--bd);border-radius:4px;">v1.02</div>
     </div>
   </header>
 
@@ -1605,37 +1605,69 @@ async function changeAudioDevice(deviceId) {
 }
 
 /* ── 마이크 획득 ── */
+/* ── Capacitor 환경 감지 ── */
+const isCapacitor = !!(window.Capacitor || window.capacitorExports);
+
 async function getMic() {
   if(localStream) return localStream;
-  try {
-    const constraints = {
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: false,
-        channelCount: 1,
-        sampleRate: 48000,
-        ...(selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : {})
-      }
-    };
-    const stream = await navigator.mediaDevices.getUserMedia(constraints);
-    localStream = stream;
-    setupAudioProcessing(stream);
-    startVoxEngine(stream);
-    // 첫 권한 획득 후 장치 목록 갱신
-    refreshAudioDevices();
-    return stream;
-  } catch(e) {
-    // 선택 장치 실패 시 기본 마이크로 재시도
-    if(selectedDeviceId) {
-      console.warn('선택 장치 실패, 기본 마이크로 전환');
-      selectedDeviceId = '';
-      G('s-audiodev') && (G('s-audiodev').value = '');
-      return getMic();
-    }
-    alert('마이크 접근 권한이 필요합니다');
-    return null;
+
+  // AudioContext 사전 활성화 (사용자 제스처 컨텍스트에서 호출됨)
+  if(!audioCtx) {
+    try {
+      audioCtx = new (window.AudioContext||window.webkitAudioContext)({ sampleRate: 48000 });
+    } catch(e) {}
   }
+  if(audioCtx && audioCtx.state === 'suspended') {
+    try { await audioCtx.resume(); } catch(e) {}
+  }
+
+  // 제약 조건: 단순하게 시작 (Capacitor WebView 호환성)
+  const simpleConstraints = { audio: true };
+  const fullConstraints = {
+    audio: {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: false,
+      channelCount: 1,
+      sampleRate: 48000,
+      ...(selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : {})
+    }
+  };
+
+  // Capacitor 환경: 단순 제약으로 먼저 시도
+  const constraintsList = isCapacitor
+    ? [simpleConstraints, fullConstraints]
+    : [fullConstraints, simpleConstraints];
+
+  for(const constraints of constraintsList) {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      localStream = stream;
+      setupAudioProcessing(stream);
+      startVoxEngine(stream);
+      refreshAudioDevices();
+      console.log('[MIC] 마이크 획득 성공:', constraints === simpleConstraints ? '단순' : '전체');
+      return stream;
+    } catch(e) {
+      console.warn('[MIC] 마이크 획득 실패:', e.name, e.message);
+      // 선택 장치 실패 시 기본 마이크로 재시도
+      if(selectedDeviceId && e.name === 'OverconstrainedError') {
+        selectedDeviceId = '';
+        G('s-audiodev') && (G('s-audiodev').value = '');
+        continue;
+      }
+      if(e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
+        // 권한 거부 - 마지막 시도도 실패
+        if(constraints === constraintsList[constraintsList.length - 1]) {
+          alert('마이크 권한이 거부되었습니다.\n설정 → 앱 → RiderCom → 권한에서 마이크를 허용해주세요.');
+          return null;
+        }
+      }
+    }
+  }
+
+  alert('마이크를 사용할 수 없습니다. 권한을 확인해주세요.');
+  return null;
 }
 
 function setupAudioProcessing(stream) {
@@ -2489,22 +2521,31 @@ document.addEventListener('visibilitychange', async () => {
     if(audioCtx && audioCtx.state === 'suspended') {
       try { await audioCtx.resume(); } catch(e) {}
     }
+    // localStream 트랙 재활성화 (Capacitor 백그라운드 후 비활성화될 수 있음)
+    if(localStream && !micMuted) {
+      localStream.getAudioTracks().forEach(t => {
+        if(!t.enabled) t.enabled = true;
+      });
+    }
     // P2P 오디오 스트림 볼륨 재확인
     Object.keys(callConns).forEach(pid => {
       const el = document.getElementById('audio-' + pid);
       if(el) {
         el.volume = parseInt(G('s-rcv').value) / 100;
-        // 재생 멈췄으면 재시작
         if(el.paused) el.play().catch(() => {});
       }
     });
     // Wake Lock 재요청
     if(driving) requestWakeLock();
+    // 무음 오디오 중단 (포그라운드에선 불필요)
+    // stopSilentAudio(); // 유지하는 게 더 안전
   } else {
     // 백그라운드 진입 시 무음 오디오로 세션 유지
-    if(Object.keys(callConns).length > 0 || driving) {
+    if(Object.keys(callConns).length > 0 || driving || localStream) {
       startSilentAudio();
     }
+    // localStream 트랙은 계속 활성화 유지 (끄지 않음!)
+    // Capacitor Foreground Service가 마이크를 유지해줌
     // 주행 스냅샷 저장
     if(driving) {
       localStorage.setItem('rc-drive-snapshot', JSON.stringify({
@@ -2707,23 +2748,7 @@ window.addEventListener('beforeunload', e => {
   }
 });
 
-// 페이지 숨김(백그라운드/종료) 감지 - 자동 저장
-document.addEventListener('visibilitychange', async () => {
-  if(document.visibilityState === 'hidden') {
-    // 주행 중이면 현재까지 데이터 임시 저장 (localStorage)
-    if(driving) {
-      const snap = {
-        dist: totalDist.toFixed(1),
-        maxSpd: maxSpeed.toFixed(0),
-        rideSec, restSec, driveSec,
-        startTime: driveStartTime?.toISOString(),
-        savedAt: new Date().toISOString()
-      };
-      localStorage.setItem('rc-drive-snapshot', JSON.stringify(snap));
-    }
-    // 녹음 중이면 청크 저장 유지 (MediaRecorder는 백그라운드에서도 동작)
-  }
-});
+// 페이지 숨김(백그라운드/종료) 감지 - 위 visibilitychange에서 처리됨
 
 // 앱 재진입 시 미완료 주행 복구 안내
 window.addEventListener('pageshow', () => {
